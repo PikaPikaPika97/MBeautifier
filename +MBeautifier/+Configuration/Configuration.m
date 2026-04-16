@@ -22,6 +22,10 @@ classdef Configuration < handle
             rule = obj.SpecialRules(lower(name));
         end
 
+        function tf = hasSpecialRule(obj, name)
+            tf = obj.SpecialRules.isKey(lower(name));
+        end
+
         function rules = specialRules(obj)
             rules = obj.SpecialRules.values;
         end
@@ -53,11 +57,51 @@ classdef Configuration < handle
                 characters{i} = obj.operatorPaddingRule(keys{i}).ValueFrom;
             end
         end
+
+        function value = statementBreakStrategy(obj)
+            value = obj.specialRuleValueOr('StatementBreakStrategy', obj.legacyStatementBreakStrategy());
+        end
+
+        function value = declarationSpacingStyle(obj)
+            value = obj.specialRuleValueOr('DeclarationSpacingStyle', 'Readable');
+        end
+
+        function value = inlineCommentSpacingStrategy(obj)
+            value = obj.specialRuleValueOr('InlineCommentSpacingStrategy', obj.legacyInlineCommentSpacingStrategy());
+        end
     end
 
     methods (Static)
         function obj = fromFile(xmlFile)
             obj = MBeautifier.Configuration.Configuration.readSettingsXML(xmlFile);
+        end
+    end
+
+    methods (Access = private)
+        function value = specialRuleValueOr(obj, name, defaultValue)
+            if obj.hasSpecialRule(name)
+                value = strtrim(obj.specialRule(name).Value);
+            else
+                value = defaultValue;
+            end
+        end
+
+        function value = legacyStatementBreakStrategy(obj)
+            if obj.hasSpecialRule('AllowMultipleStatementsPerLine') && ...
+                    obj.specialRule('AllowMultipleStatementsPerLine').ValueAsDouble ~= 0
+                value = 'Never';
+            else
+                value = 'Always';
+            end
+        end
+
+        function value = legacyInlineCommentSpacingStrategy(obj)
+            if obj.hasSpecialRule('PreserveInlineCommentSpacing') && ...
+                    obj.specialRule('PreserveInlineCommentSpacing').ValueAsDouble ~= 0
+                value = 'Preserve';
+            else
+                value = 'Normalize';
+            end
         end
     end
 

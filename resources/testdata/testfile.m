@@ -55,11 +55,11 @@ a(3, :) = [3, 1]
 b = zeros(3, 3, 3);
 b(:, :, 2) = rand(2, 2);
 
- %if AddCommasToMatrices=1
-a=[@(x) minus(x,1),]
+%if AddCommasToMatrices=1
+a = [@(x) minus(x, 1),]
 
 %if AddCommasToCellArrays=1
-a={@(x) minus(x,1),  @(x,y) minus(x,y)}
+a = {@(x) minus(x, 1), @(x, y) minus(x, y)}
 
 % #34
 if -1 > -2
@@ -69,26 +69,26 @@ end
 
 % #59
 a = [1, 2, 3];
-a = [1, a...
-.* 2]
+a = [1, a ...
+    .* 2]
 
 % #58
 a = [1, a ... % 111
-    .* 2, ... % 222
-    123, 4- ...
+.* 2, ... % 222
+123, 4 - ...
     5] % 333
 
 a = {'', ... % hello
-    1, 4+ ... %hello2
-     2} % hello3
+1, 4 + ... %hello2
+2} % hello3
 
 if true || ... % aaa
-        true || ... asd
-        false % //
+    true || ... asd
+    false % //
 end
 
 %80
-a + sprintf("%d", b)%comment
+a + sprintf("%d", b) %comment
 a + sprintf("'%d'", b) %comment
 a + sprintf("""%d""", b) % comment
 a + sprintf('"%d"', b)
@@ -96,22 +96,22 @@ a.' + sprintf('''%d''', b)
 a' + sprintf('%d', b)
 
 % Remove extra space after @
-f = @ (x) a
+f = @(x) a
 % Remove extra space before unary operator
-f = @(x) - a
+f = @(x) -a
 num@MySuper(obj) - a
 % remove spaces around @
-num @ MySuper(obj) - a
+num@MySuper(obj) - a
 
 % if AddCommasToMatrices=1
 % add comma after b
-[a, - b c + d]
+[a, -b, c + d]
 % add comma before b
-[a -b]
+[a, -b]
 % one comma added after b
-[a *b (c -d)]
+[a * b, (c - d)]
 
 % treat whitespace as delimiter regardless of AddCommasToMatrices
-[1 (2) {3}]
+[1, (2), {3}]
 % same for cells
-{1 (2) {3}}
+{1, (2), {3}}

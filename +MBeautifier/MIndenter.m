@@ -71,8 +71,15 @@ classdef MIndenter < handle
                 % split line in words
                 pattern = ['[', obj.joinString(obj.Delimiters, '|'), ']'];
                 words = regexp(line, pattern, 'split');
+                isOldStyleFunctionCall = false;
+                if numel(regexp(line, '^[a-zA-Z0-9_]+\s+[^(=]'))
+                    splitLine = regexp(strtrim(line), ' ', 'split');
+                    if numel(splitLine) && ~any(strcmp(splitLine{1}, iskeyword())) && exist(splitLine{1}) %#ok<EXIST>
+                        isOldStyleFunctionCall = true;
+                    end
+                end
                 % ignore empty lines and comments
-                if (~isempty(line) && (line(1) ~= '%'))
+                if (~isempty(line) && (line(1) ~= '%') && ~isOldStyleFunctionCall)
                     % find keywords and adjust indent
                     for wordct = 1:numel(words)
                         % detect end of line comments

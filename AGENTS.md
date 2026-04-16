@@ -13,6 +13,7 @@ The project is small and configuration-driven. Formatting behavior is primarily 
 - `+MBeautifier/MFormatter.m`: performs token and line formatting, directive handling, comment splitting, newline normalization, operator padding, and continuation-line processing.
 - `+MBeautifier/MIndenter.m`: applies indentation after formatting using keyword-based indentation rules.
 - `resources/settings/MBeautyConfigurationRules.xml`: default formatter configuration.
+- `tests/run_all_tests.m`: stable entry point for the headless `matlab.unittest` suite.
 
 ## Package Structure
 
@@ -20,6 +21,7 @@ The project is small and configuration-driven. Formatting behavior is primarily 
 - `+MBeautifier/+Configuration/`: XML-backed configuration model for operator, keyword, and special rules.
 - `resources/settings/`: formatter defaults in XML.
 - `resources/testdata/`: sample MATLAB files used as regression-oriented reference inputs.
+- `tests/`: class-based regression and focused behavior coverage for the formatter pipeline.
 
 ## Implementation Notes
 
@@ -33,22 +35,22 @@ The project is small and configuration-driven. Formatting behavior is primarily 
 - `MBeautify.indentPage(...)` is not a pure formatter step; it coordinates with MATLAB Editor indentation preferences and should be treated as side-effectful editor integration.
 - Shortcut creation contains version-specific MATLAB UI integration, especially around the pre/post R2019b split in `MBeautyShortcuts.m`.
 - Some historical spellings are part of the live implementation and XML schema, for example `KeyworPaddingRule`, `InlineContinousLines`, and `#MBeutyString#`. Do not "clean them up" casually without tracing all usages.
+- Modern formatting behavior is now configurable through `StatementBreakStrategy`, `DeclarationSpacingStyle`, and `InlineCommentSpacingStrategy`. The legacy XML keys still load, but the newer strategy keys take precedence when both are present.
 
 ## Validation
 
-There is no formal automated `matlab.unittest` suite in the repository at the moment.
-
 Use these checks after formatter changes:
 
-1. Review `resources/testdata/testfile.m`. The header states it should not change when run through the formatter.
-2. Review `resources/testdata/testfile_bugs.m` for known edge cases that are not yet merged into the main reference file.
-3. In MATLAB, smoke test the public APIs that match your change:
+1. Run `tests/run_all_tests`. This is the primary automated regression gate for the headless formatter pipeline.
+2. Review `resources/testdata/testfile.m`. It is the canonical golden fixture for default formatting behavior and should remain stable after the test suite passes.
+3. Review `resources/testdata/testfile_bugs.m` for known edge cases that are intentionally quarantined from the golden fixture.
+4. In MATLAB, smoke test the public APIs that match your change:
    - `MBeautify.formatCurrentEditorPage()`
    - `MBeautify.formatEditorSelection()`
    - `MBeautify.formatFile(...)`
    - `MBeautify.formatFiles(...)`
-4. If configuration behavior changed, verify the corresponding rule in `resources/settings/MBeautyConfigurationRules.xml`.
-5. If the change touches directives, continuation lines, or indentation, run a targeted manual MATLAB smoke test instead of trusting string-level inspection alone.
+5. If configuration behavior changed, verify the corresponding rule in `resources/settings/MBeautyConfigurationRules.xml`.
+6. If the change touches directives, continuation lines, or indentation, run a targeted manual MATLAB smoke test instead of trusting string-level inspection alone.
 
 ## Editing Guidance
 
@@ -72,3 +74,6 @@ Use these checks after formatter changes:
 - `resources/settings/MBeautyConfigurationRules.xml`
 - `resources/testdata/testfile.m`
 - `resources/testdata/testfile_bugs.m`
+- `tests/run_all_tests.m`
+- `tests/TestFormatterRegression.m`
+- `tests/TestModernFormatting.m`

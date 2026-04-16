@@ -222,8 +222,12 @@
          <Value>0</Value>
       </SpecialRule>
       <SpecialRule>
-         <Key>AllowMultipleStatementsPerLine</Key>
-         <Value>0</Value>
+         <Key>StatementBreakStrategy</Key>
+         <Value>ContextAware</Value>
+      </SpecialRule>
+      <SpecialRule>
+         <Key>DeclarationSpacingStyle</Key>
+         <Value>Readable</Value>
       </SpecialRule>
       <SpecialRule>
          <Key>InlineContinousLines</Key>
@@ -254,8 +258,8 @@
          <Value>NestedFunctions</Value>
       </SpecialRule>
       <SpecialRule>
-         <Key>PreserveInlineCommentSpacing</Key>
-         <Value>0</Value>
+         <Key>InlineCommentSpacingStrategy</Key>
+         <Value>Normalize</Value>
       </SpecialRule>
    </SpecialRules>
 </MBeautifyRuleConfiguration>

@@ -64,7 +64,11 @@ The current list of special rules:
  - **SectionPrecedingNewlineCount**: Integer value. Defines how many empty lines should precede the section comments (`%% `). Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: section comments will be preceded exactly by X empty lines.
  - **SectionTrailingNewlineCount**: Integer value. Defines how many empty lines should follow the section comments (`%% `). Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: section comments will be followed exactly by X empty lines.
  - **EndingNewlineCount**: Integer value. Defines how many empty lines should be placed on the end of the input. Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: input will trailed exactly by X empty lines.
- - **AllowMultipleStatementsPerLine**: [1|0]. If set to 1, MBeautifier will allow multiple statements per line (`a = 1; b = 2;`), otherwise it will break every statement into a new line. Defaults to "0".
+ - **StatementBreakStrategy**: ['Always'|'ContextAware'|'Never']. Controls how MBeautifier handles multiple statements on a single line. `Always` always splits, `Never` preserves them, and `ContextAware` preserves compact guards such as `if cond; return; end` while still splitting setup chains such as `clc; clear; close all;`. Defaults to `"ContextAware"`.
+ - **DeclarationSpacingStyle**: ['Readable'|'Compact'|'Preserve']. Controls spacing inside declaration-heavy contexts such as `arguments` blocks. `Readable` keeps declarations explicit, `Compact` removes optional declaration spacing, and `Preserve` keeps intra-line spacing as-is.
+ - **InlineCommentSpacingStrategy**: ['Normalize'|'Preserve']. Controls spacing before inline trailing comments. `Normalize` enforces a single separating space, `Preserve` keeps the original spacing.
+ - **AllowMultipleStatementsPerLine**: [1|0]. Legacy alias for the statement break behavior. `0` maps to `StatementBreakStrategy = Always` and `1` maps to `StatementBreakStrategy = Never`.
+ - **PreserveInlineCommentSpacing**: [1|0]. Legacy alias for the inline comment spacing behavior. `0` maps to `InlineCommentSpacingStrategy = Normalize` and `1` maps to `InlineCommentSpacingStrategy = Preserve`.
  
 ##### Special rules regarding matrix and cell array separators
  
@@ -162,6 +166,16 @@ Currently four approaches are supported:
   - `MBeautify.createShortcut('file')`: Creates a shortcut for `MBeautify.formatFile(sourceFile, destFile)`
   
  These shortcuts will add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new Matlab instance is opened.
+
+### Tests
+
+The repository includes a headless `matlab.unittest` suite under `tests/`.
+
+Run the full suite from MATLAB with:
+
+    tests/run_all_tests
+
+The suite focuses on formatter and indenter behavior that does not depend on `matlab.desktop.editor`. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a quarantined known-bug fixture.
  
  Supported Matlab versions
  -------------------------

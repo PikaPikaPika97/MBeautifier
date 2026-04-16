@@ -58,6 +58,7 @@ classdef MFormatter < handle
             containerDepth = 0;
             contLineArray = cell(0, 2);
             isSectionSeparator = false;
+            isInArgumentsBlock = false;
 
             isFormattingOff = false;
 
@@ -113,8 +114,10 @@ classdef MFormatter < handle
 
                 %% Determine the position where the line shall be splitted into code and comment
                 [actCode, actComment, splittingPos, isSectionSeparator] = obj.findComment(line);
+                trimmedCode = strtrim(actCode);
+                currentContext = obj.classifyFormattingContext(trimmedCode, isInArgumentsBlock);
                 commentSpacing = regexp(actCode, '\s+$', 'match');
-                if numel(commentSpacing) > 0 && actComment ~= "" && obj.Configuration.specialRule('PreserveInlineCommentSpacing').ValueAsDouble() ~= 0
+                if numel(commentSpacing) > 0 && actComment ~= "" && obj.shouldPreserveInlineCommentSpacing()
                     actComment = [commentSpacing{1}, actComment];
                 end
 
@@ -127,9 +130,10 @@ classdef MFormatter < handle
                 % The continousment characters have to be replaced by tokens and the comments of the lines must be stored
                 % After replacement, the continuosment has to be re-created along with the comments.
 
-                trimmedCode = strtrim(actCode);
                 if ~numel(trimmedCode)
                     actCodeFinal = '';
+                elseif obj.shouldPreserveContextAwareSourceLine(trimmedCode)
+                    actCodeFinal = trimmedCode;
                 else
                     containerDepth = containerDepth + obj.calculateContainerDepthDeltaOfLine(trimmedCode);
 
@@ -238,15 +242,16 @@ classdef MFormatter < handle
                         end
                     end
 
-                    actCodeFinal = obj.performReplacements(actCode);
+                    if strcmp(currentContext, 'argumentsDeclaration')
+                        actCodeFinal = obj.formatDeclarationLine(actCode);
+                    else
+                        actCodeFinal = obj.performReplacements(actCode);
+                    end
                 end
 
-                if ~obj.IsInBlockComment && obj.Configuration.specialRule('PreserveInlineCommentSpacing').ValueAsDouble() == 0
-                    line = [strtrim(actCodeFinal), ' ', actComment];
-                else
-                    line = [strtrim(actCodeFinal), actComment];
-                end
+                line = obj.buildFormattedLine(actCodeFinal, actComment);
                 replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
+                isInArgumentsBlock = obj.updateArgumentsBlockState(trimmedCode, isInArgumentsBlock);
             end
             % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one
             if numel(replacedTextArray) && numel(strtrim(replacedTextArray{end}))
@@ -774,10 +779,8 @@ classdef MFormatter < handle
                 end
             end
 
-            if ~isContainerElement && ~obj.Configuration.specialRule('AllowMultipleStatementsPerLine').ValueAsDouble
-                if numel(regexp(data, ';')) > 1
-                    data = regexprep(data, ';(?!\s*$)', ';\n');
-                end
+            if ~isContainerElement
+                data = obj.applyStatementBreakStrategy(data);
             end
 
             data = regexprep(data, MBeautifier.Constants.WhiteSpaceToken, ' ');
@@ -800,6 +803,217 @@ classdef MFormatter < handle
             % Fix semicolon whitespace at end of line
             data = regexprep(data, '\s+;\s*$', ';');
             data = strtrim(data);
+        end
+
+        function line = buildFormattedLine(obj, actCodeFinal, actComment)
+            trimmedCode = strtrim(actCodeFinal);
+            trimmedComment = strtrim(actComment);
+
+            if isempty(trimmedComment)
+                line = trimmedCode;
+                return;
+            end
+
+            if isempty(trimmedCode)
+                line = trimmedComment;
+            elseif obj.shouldPreserveInlineCommentSpacing() || obj.IsInBlockComment
+                line = [trimmedCode, actComment];
+            else
+                line = [trimmedCode, ' ', trimmedComment];
+            end
+        end
+
+        function tf = shouldPreserveInlineCommentSpacing(obj)
+            tf = strcmpi(obj.Configuration.inlineCommentSpacingStrategy(), 'Preserve');
+        end
+
+        function data = applyStatementBreakStrategy(obj, data)
+            if numel(regexp(data, ';')) <= 1
+                return;
+            end
+
+            strategy = lower(strtrim(obj.Configuration.statementBreakStrategy()));
+            switch strategy
+                case 'never'
+                    return;
+
+                case 'contextaware'
+                    if obj.isContextAwareCompactStatement(data)
+                        return;
+                    end
+                    data = obj.splitNonTrailingStatements(data);
+
+                otherwise
+                    data = obj.splitNonTrailingStatements(data);
+            end
+        end
+
+        function tf = isContextAwareCompactStatement(obj, data)
+            trimmed = strtrim(data);
+            tf = false;
+
+            if isempty(trimmed)
+                return;
+            end
+
+            hasClosingEnd = numel(regexp(trimmed, '(^|[^a-zA-Z0-9_])end\s*;?\s*$', 'once')) > 0;
+            if ~hasClosingEnd
+                return;
+            end
+
+            if numel(regexp(trimmed, '^if($|[^a-zA-Z0-9_])', 'once')) || ...
+                    numel(regexp(trimmed, '^for($|[^a-zA-Z0-9_])', 'once')) || ...
+                    numel(regexp(trimmed, '^while($|[^a-zA-Z0-9_])', 'once'))
+                tf = true;
+                return;
+            end
+
+            if numel(regexp(trimmed, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
+                    numel(regexp(trimmed, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'))
+                tf = true;
+            end
+        end
+
+        function data = splitNonTrailingStatements(obj, data)
+            data = regexprep(data, ';(?!\s*$)', ';\n');
+        end
+
+        function context = classifyFormattingContext(obj, trimmedCode, isInArgumentsBlock)
+            context = 'generic';
+
+            if isempty(trimmedCode)
+                return;
+            end
+
+            if isInArgumentsBlock
+                if obj.isArgumentsBlockEnd(trimmedCode)
+                    context = 'argumentsEnd';
+                elseif obj.isArgumentsDeclarationLine(trimmedCode)
+                    context = 'argumentsDeclaration';
+                else
+                    context = 'argumentsBody';
+                end
+                return;
+            end
+
+            if obj.isArgumentsBlockStart(trimmedCode)
+                context = 'argumentsStart';
+                return;
+            end
+
+            token = regexp(trimmedCode, '^[a-zA-Z]+', 'match', 'once');
+            if isempty(token)
+                return;
+            end
+
+            switch lower(token)
+                case 'properties'
+                    context = 'propertiesBlock';
+                case 'methods'
+                    context = 'methodsBlock';
+                case 'function'
+                    context = 'functionHeader';
+                case 'classdef'
+                    context = 'classHeader';
+            end
+        end
+
+        function isInArgumentsBlock = updateArgumentsBlockState(obj, trimmedCode, isInArgumentsBlock)
+            if obj.isArgumentsBlockStart(trimmedCode)
+                isInArgumentsBlock = true;
+            elseif isInArgumentsBlock && obj.isArgumentsBlockEnd(trimmedCode)
+                isInArgumentsBlock = false;
+            end
+        end
+
+        function tf = isArgumentsBlockStart(obj, trimmedCode)
+            tf = numel(regexp(trimmedCode, '^arguments(\s*\(.*\))?\s*$', 'once')) > 0;
+        end
+
+        function tf = isArgumentsBlockEnd(obj, trimmedCode)
+            tf = numel(regexp(trimmedCode, '^end\s*;?\s*$', 'once')) > 0;
+        end
+
+        function tf = isArgumentsDeclarationLine(obj, trimmedCode)
+            tf = numel(regexp(trimmedCode, '^[a-zA-Z]\w*(\.[a-zA-Z]\w*)*', 'once')) > 0 ...
+                && ~obj.isArgumentsBlockStart(trimmedCode) ...
+                && ~obj.isArgumentsBlockEnd(trimmedCode);
+        end
+
+        function data = formatDeclarationLine(obj, data)
+            style = lower(strtrim(obj.Configuration.declarationSpacingStyle()));
+            trimmed = strtrim(data);
+
+            if isempty(trimmed) || strcmp(style, 'preserve')
+                data = trimmed;
+                return;
+            end
+
+            parts = regexp(trimmed, ...
+                '^(?<name>[a-zA-Z]\w*(?:\.[a-zA-Z]\w*)*)(?<shape>\s*\([^=]*?\))?(?<type>(?:\s+[a-zA-Z]\w*(?:\.[a-zA-Z]\w*)*)*)?(?<validators>\s*\{.*\})?(?<default>\s*=\s*.*)?$', ...
+                'names', 'once');
+
+            if isempty(parts)
+                data = obj.performReplacements(trimmed);
+                return;
+            end
+
+            shape = strtrim(parts.shape);
+            type = strtrim(parts.type);
+            validators = strtrim(parts.validators);
+            defaultValue = strtrim(parts.default);
+
+            data = parts.name;
+
+            if strcmp(style, 'compact')
+                if ~isempty(shape)
+                    data = [data, shape];
+                end
+                if ~isempty(type)
+                    data = [data, ' ', type];
+                end
+                if ~isempty(validators)
+                    data = [data, validators];
+                end
+            else
+                if ~isempty(shape)
+                    data = [data, ' ', shape];
+                end
+                if ~isempty(type)
+                    data = [data, ' ', type];
+                end
+                if ~isempty(validators)
+                    data = [data, ' ', validators];
+                end
+            end
+
+            if ~isempty(defaultValue)
+                defaultValue = regexprep(defaultValue, '^\s*=\s*', '');
+                data = [data, ' = ', strtrim(defaultValue)];
+            end
+        end
+
+        function tf = shouldPreserveContextAwareSourceLine(obj, trimmedCode)
+            tf = false;
+
+            if ~strcmpi(obj.Configuration.statementBreakStrategy(), 'ContextAware')
+                return;
+            end
+
+            if numel(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])end\s*;?\s*$', 'once')) == 0 || ...
+                    numel(strfind(trimmedCode, ';')) <= 1
+                return;
+            end
+
+            if numel(regexp(trimmedCode, '^(if|for|while)($|[^a-zA-Z0-9_])', 'once'))
+                tf = true;
+                return;
+            end
+
+            if numel(regexp(trimmedCode, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
+                    numel(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'))
+                tf = true;
+            end
         end
 
         function ret = calculateContainerDepthDeltaOfLine(obj, code)
