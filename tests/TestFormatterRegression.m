@@ -36,7 +36,8 @@ classdef TestFormatterRegression < matlab.unittest.TestCase
         end
 
         function testKnownBugFixtureIsFormattedLikeTheGoldenOutput(testCase)
-            bugFixturePath = FormatterTestUtils.fixturePath('testfile_bugs.m');
+            bugFixturePath = FormatterTestUtils.fixturePath(fullfile('issues', ...
+                'issue_0035_function_call_arithmetic_spacing.m'));
             testCase.verifyTrue(exist(bugFixturePath, 'file') == 2);
 
             input = FormatterTestUtils.readText(bugFixturePath);
