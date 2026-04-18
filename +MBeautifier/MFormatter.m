@@ -43,144 +43,18 @@ classdef MFormatter < handle
             obj.IsInBlockComment = false;
             obj.DirectiveDirector = MBeautifier.DirectiveDirector();
 
-            nMaximalNewLines = obj.Configuration.specialRule('MaximalNewLines').ValueAsDouble;
-            nSectionPrecedingNewlines = obj.Configuration.specialRule('SectionPrecedingNewlineCount').ValueAsDouble;
-            formatSectionPrecedingNewlines = nSectionPrecedingNewlines >= 0;
-            nSectionTrailingNewlines = obj.Configuration.specialRule('SectionTrailingNewlineCount').ValueAsDouble;
-            formatSectionTrailingNewlines = nSectionTrailingNewlines >= 0;
-            newLine = MBeautifier.Constants.NewLine;
+            options = obj.createFormattingOptions(source);
+            state = obj.createFormattingRunState(numel(options.textArray));
+            outputBuffer = cell(1, options.initialOutputCapacity);
+            outputCount = 0;
 
-            contTokenStruct = MBeautifier.MFormatter.TokenStruct.ContinueToken;
-            textArray = regexp(source, newLine, 'split');
-
-            replacedTextArray = {};
-            isInContinousLine = 0;
-            containerDepth = 0;
-            contLineArray = cell(0, 2);
-            isSectionSeparator = false;
-            isInArgumentsBlock = false;
-
-            isFormattingOff = false;
-
-            nNewLinesFound = 0;
-            for j = 1:numel(textArray)
-                line = textArray{j};
-
-                isFormattingOff = obj.updateFormattingDirectiveState(line, isInContinousLine, isFormattingOff);
-
-                if isFormattingOff
-                    replacedTextArray = [replacedTextArray, line, MBeautifier.Constants.NewLine];
-                    continue
-                end
-
-                %% Process the maximal new-line count
-                if isempty(strtrim(line))
-                    nNewLinesFound = nNewLinesFound + 1;
-
-                    if nNewLinesFound > nMaximalNewLines || ...
-                            (formatSectionTrailingNewlines && isSectionSeparator && nNewLinesFound > nSectionTrailingNewlines)
-                        continue;
-                    end
-
-                    replacedTextArray = [replacedTextArray, MBeautifier.Constants.NewLine];
-                    continue;
-
-                else
-                    if isSectionSeparator && formatSectionTrailingNewlines && (nNewLinesFound - nSectionTrailingNewlines < 0)
-                        for i = 1:abs(nNewLinesFound-nSectionTrailingNewlines)
-                            replacedTextArray = [replacedTextArray, MBeautifier.Constants.NewLine];
-                        end
-                    end
-
-                    nNewLinesFound = 0;
-                end
-
-                %% Determine the position where the line shall be splitted into code and comment
-                [actCode, actComment, splittingPos, isSectionSeparator] = obj.findComment(line);
-                trimmedCode = strtrim(actCode);
-                currentContext = obj.classifyFormattingContext(trimmedCode, isInArgumentsBlock);
-                commentSpacing = regexp(actCode, '\s+$', 'match');
-                if numel(commentSpacing) > 0 && actComment ~= "" && obj.shouldPreserveInlineCommentSpacing()
-                    actComment = [commentSpacing{1}, actComment];
-                end
-
-                if isSectionSeparator && formatSectionPrecedingNewlines
-                    replacedTextArray = MBeautifier.MFormatter.handleTrailingEmptyLines(replacedTextArray, nSectionPrecedingNewlines);
-                end
-
-                %% Check for line continousment (...)
-                % Continous lines have to be converted into one single code line to perform replacement on it
-                % The continousment characters have to be replaced by tokens and the comments of the lines must be stored
-                % After replacement, the continuosment has to be re-created along with the comments.
-
-                if ~numel(trimmedCode)
-                    actCodeFinal = '';
-                elseif obj.shouldPreserveContextAwareSourceLine(trimmedCode)
-                    actCodeFinal = trimmedCode;
-                else
-                    containerDepth = containerDepth + obj.calculateContainerDepthDeltaOfLine(trimmedCode);
-
-                    % Auto append "..." to the lines of continuous containers
-                    if containerDepth && ~(numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
-                        if strcmp(trimmedCode(end), ',') || strcmp(trimmedCode(end), ';')
-                            actCode = [trimmedCode, ' ...'];
-                        else
-                            actCode = [actCode, '; ...'];
-                        end
-                    end
-
-                    trimmedCode = strtrim(actCode);
-
-                    % Line ends with "..."
-                    if (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...')) ...
-                            || (isequal(splittingPos, 1) && isInContinousLine)
-                        isInContinousLine = true;
-                        contLineArray{end+1, 1} = actCode;
-                        contLineArray{end, 2} = actComment;
-                        % Step to next line
-                        continue;
-                    else
-                        % End of cont line
-                        if isInContinousLine
-                            isInContinousLine = false;
-                            contLineArray{end+1, 1} = actCode;
-                            contLineArray{end, 2} = actComment;
-                            line = obj.formatContinuousLine(contLineArray, actComment, contTokenStruct, newLine);
-                            replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
-                            contLineArray = cell(0, 2);
-
-                            continue;
-                        end
-                    end
-
-                    if strcmp(currentContext, 'argumentsDeclaration')
-                        actCodeFinal = obj.formatDeclarationLine(actCode);
-                    else
-                        actCodeFinal = obj.performReplacements(actCode);
-                    end
-                end
-
-                line = obj.buildFormattedLine(actCodeFinal, actComment);
-                replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
-                isInArgumentsBlock = obj.updateArgumentsBlockState(trimmedCode, isInArgumentsBlock);
-            end
-            % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one
-            if numel(replacedTextArray) && numel(strtrim(replacedTextArray{end}))
-                replacedTextArray{end} = strtrim(replacedTextArray{end});
+            for j = 1:numel(options.textArray)
+                line = options.textArray{j};
+                [state, outputBuffer, outputCount] = ...
+                    obj.processSourceLine(line, state, options, outputBuffer, outputCount);
             end
 
-            nStartingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
-            formatEndingNewlines = nStartingNewlines >= 0;
-            if formatEndingNewlines
-                replacedTextArray = MBeautifier.MFormatter.handleStartingEmptyLines(replacedTextArray, nStartingNewlines);
-            end
-
-            nEndingNewlines = obj.Configuration.specialRule('EndingNewlineCount').ValueAsDouble;
-            formatEndingNewlines = nEndingNewlines >= 0;
-            if formatEndingNewlines
-                replacedTextArray = MBeautifier.MFormatter.handleTrailingEmptyLines(replacedTextArray, nEndingNewlines);
-            end
-
+            replacedTextArray = obj.finalizeOutputEntries(outputBuffer(1:outputCount), options);
             formattedSource = [replacedTextArray{:}];
         end
     end
@@ -238,12 +112,12 @@ classdef MFormatter < handle
         end
 
         function outStr = joinString(cellStr, delim)
-            outStr = '';
-            for i = 1:numel(cellStr)
-                outStr = [outStr, cellStr{i}, delim];
+            if isempty(cellStr)
+                outStr = '';
+                return;
             end
 
-            outStr(end-numel(delim)+1:end) = '';
+            outStr = strjoin(cellStr, delim);
         end
 
         function tokenStructs = getTokenStruct()
@@ -298,7 +172,9 @@ classdef MFormatter < handle
 
             charsIndicateTranspose = '[a-zA-Z0-9\)\]\}\.]';
 
-            tempCode = '';
+            tempParts = cell(1, max(1, numel(actCode) * 2));
+            partCount = 0;
+            lastOutputChar = '';
             isLastCharDot = false;
             isLastCharTransp = false;
             isInCharStr = false;
@@ -314,20 +190,27 @@ classdef MFormatter < handle
                 if isequal(actChar, '''')
                     % .' => NonConj transpose
                     if isLastCharDot
-                        tempCode = [tempCode(1:end-1), nonConjTrnspTok];
+                        [tempParts, partCount] = MBeautifier.MFormatter.trimLastOutputChar(tempParts, partCount);
+                        [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                            tempParts, partCount, nonConjTrnspTok);
                         isLastCharTransp = true;
                     else
                         if isLastCharTransp
-                            tempCode = [tempCode, trnspTok];
+                            [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                                tempParts, partCount, trnspTok);
                         else
                             if isInDblQuoteStr
-                                tempCode = [tempCode, actChar];
+                                [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                                    tempParts, partCount, actChar);
                                 isLastCharTransp = false;
-                            elseif numel(tempCode) && ~isInCharStr && numel(regexp(tempCode(end), charsIndicateTranspose))
-                                tempCode = [tempCode, trnspTok];
+                            elseif partCount > 0 && ~isInCharStr ...
+                                    && ~isempty(regexp(lastOutputChar, charsIndicateTranspose, 'once'))
+                                [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                                    tempParts, partCount, trnspTok);
                                 isLastCharTransp = true;
                             else
-                                tempCode = [tempCode, actChar];
+                                [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                                    tempParts, partCount, actChar);
                                 isInCharStr = ~isInCharStr;
                                 isLastCharTransp = false;
                             end
@@ -337,19 +220,247 @@ classdef MFormatter < handle
                     isLastCharDot = false;
                 elseif isequal(actChar, '.') && ~isInCharStr
                     isLastCharDot = true;
-                    tempCode = [tempCode, actChar];
+                    [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                        tempParts, partCount, actChar);
                     isLastCharTransp = false;
                 else
                     isLastCharDot = false;
-                    tempCode = [tempCode, actChar];
+                    [tempParts, partCount, lastOutputChar] = MBeautifier.MFormatter.appendTextPart( ...
+                        tempParts, partCount, actChar);
                     isLastCharTransp = false;
                 end
             end
-            actCode = tempCode;
+            if partCount == 0
+                actCode = '';
+            else
+                actCode = [tempParts{1:partCount}];
+            end
         end
     end
 
     methods (Access = private)
+        function options = createFormattingOptions(obj, source)
+            newLine = MBeautifier.Constants.NewLine;
+            options = struct();
+            options.newLine = newLine;
+            options.textArray = regexp(source, newLine, 'split');
+            options.maximalNewLines = obj.Configuration.specialRule('MaximalNewLines').ValueAsDouble;
+            options.sectionPrecedingNewlines = obj.Configuration.specialRule('SectionPrecedingNewlineCount').ValueAsDouble;
+            options.formatSectionPrecedingNewlines = options.sectionPrecedingNewlines >= 0;
+            options.sectionTrailingNewlines = obj.Configuration.specialRule('SectionTrailingNewlineCount').ValueAsDouble;
+            options.formatSectionTrailingNewlines = options.sectionTrailingNewlines >= 0;
+            options.startingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
+            options.formatStartingNewlines = options.startingNewlines >= 0;
+            options.endingNewlines = obj.Configuration.specialRule('EndingNewlineCount').ValueAsDouble;
+            options.formatEndingNewlines = options.endingNewlines >= 0;
+            options.contTokenStruct = MBeautifier.MFormatter.TokenStruct.ContinueToken;
+            options.initialOutputCapacity = max(16, numel(options.textArray) * 4 + 8);
+        end
+
+        function state = createFormattingRunState(~, lineCount)
+            state = struct( ...
+                'isFormattingOff', false, ...
+                'isInContinousLine', false, ...
+                'containerDepth', 0, ...
+                'continuousLines', {cell(max(1, lineCount), 2)}, ...
+                'continuousLineCount', 0, ...
+                'isSectionSeparator', false, ...
+                'isInArgumentsBlock', false, ...
+                'nNewLinesFound', 0);
+        end
+
+        function [state, outputBuffer, outputCount] = processSourceLine(obj, line, state, options, outputBuffer, outputCount)
+            % Directive changes only affect standalone code lines outside block comments.
+            if ~(state.isInContinousLine || obj.IsInBlockComment)
+                directiveChange = obj.DirectiveDirector.updateFromLine(line);
+                if ~isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.NONE)
+                    switch lower(directiveChange.DirectiveName)
+                        case 'format'
+                            if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.REMOVED)
+                                state.isFormattingOff = false;
+                            elseif isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.ADDED) ...
+                                    || isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.CHANGED)
+                                state.isFormattingOff = numel(directiveChange.Directive.Values) > 0 ...
+                                    && strcmpi(directiveChange.Directive.Values{1}, 'off');
+                            end
+                    end
+                end
+            end
+
+            if state.isFormattingOff
+                [outputBuffer, outputCount] = MBeautifier.MFormatter.appendOutputEntries( ...
+                    outputBuffer, outputCount, {line, options.newLine});
+                return;
+            end
+
+            [state, outputBuffer, outputCount, wasHandled] = ...
+                obj.processBlankLine(line, state, options, outputBuffer, outputCount);
+            if wasHandled
+                return;
+            end
+
+            [state, outputBuffer, outputCount] = ...
+                obj.processFormattedLine(line, state, options, outputBuffer, outputCount);
+        end
+
+        function [state, outputBuffer, outputCount, wasHandled] = processBlankLine(~, line, state, options, outputBuffer, outputCount)
+            wasHandled = false;
+
+            if isempty(strtrim(line))
+                state.nNewLinesFound = state.nNewLinesFound + 1;
+
+                if state.nNewLinesFound > options.maximalNewLines || ...
+                        (options.formatSectionTrailingNewlines && state.isSectionSeparator ...
+                        && state.nNewLinesFound > options.sectionTrailingNewlines)
+                    wasHandled = true;
+                    return;
+                end
+
+                [outputBuffer, outputCount] = MBeautifier.MFormatter.appendOutputEntries( ...
+                    outputBuffer, outputCount, {options.newLine});
+                wasHandled = true;
+                return;
+            end
+
+            if state.isSectionSeparator && options.formatSectionTrailingNewlines ...
+                    && state.nNewLinesFound < options.sectionTrailingNewlines
+                missingNewLines = options.sectionTrailingNewlines - state.nNewLinesFound;
+                [outputBuffer, outputCount] = MBeautifier.MFormatter.appendRepeatedEntry( ...
+                    outputBuffer, outputCount, options.newLine, missingNewLines);
+            end
+
+            state.nNewLinesFound = 0;
+        end
+
+        function [state, outputBuffer, outputCount] = processFormattedLine(obj, line, state, options, outputBuffer, outputCount)
+            [actCode, actComment, splittingPos, state.isSectionSeparator] = obj.findComment(line);
+            trimmedCode = strtrim(actCode);
+            currentContext = obj.classifyFormattingContext(trimmedCode, state.isInArgumentsBlock);
+            actComment = obj.adjustInlineCommentSpacing(actCode, actComment);
+
+            if state.isSectionSeparator && options.formatSectionPrecedingNewlines
+                currentEntries = MBeautifier.MFormatter.handleTrailingEmptyLines( ...
+                    outputBuffer(1:outputCount), options.sectionPrecedingNewlines);
+                [outputBuffer, outputCount] = MBeautifier.MFormatter.replaceOutputEntries( ...
+                    outputBuffer, currentEntries);
+            end
+
+            if isempty(trimmedCode)
+                if isequal(splittingPos, 1) && state.isInContinousLine
+                    state = obj.appendContinuousLine(state, actCode, actComment);
+                    return;
+                end
+                actCodeFinal = '';
+            else
+                [state, actCode, trimmedCode, wasDeferred] = ...
+                    obj.prepareLineForFormatting(actCode, actComment, trimmedCode, splittingPos, state);
+                if wasDeferred
+                    return;
+                end
+
+                if state.isInContinousLine
+                    contLineArray = state.continuousLines(1:state.continuousLineCount, :);
+                    line = obj.formatContinuousLine(contLineArray, actComment, options.contTokenStruct, options.newLine);
+                    [outputBuffer, outputCount] = MBeautifier.MFormatter.appendOutputEntries( ...
+                        outputBuffer, outputCount, {[line, options.newLine]});
+                    state.continuousLineCount = 0;
+                    state.isInContinousLine = false;
+                    return;
+                end
+
+                actCodeFinal = obj.formatCodeByContext(actCode, currentContext);
+            end
+
+            line = obj.buildFormattedLine(actCodeFinal, actComment);
+            [outputBuffer, outputCount] = MBeautifier.MFormatter.appendOutputEntries( ...
+                outputBuffer, outputCount, {[line, options.newLine]});
+            state.isInArgumentsBlock = obj.updateArgumentsBlockState(trimmedCode, state.isInArgumentsBlock);
+        end
+
+        function [state, actCode, trimmedCode, wasDeferred] = prepareLineForFormatting(obj, actCode, actComment, trimmedCode, splittingPos, state)
+            wasDeferred = false;
+
+            if obj.shouldPreserveContextAwareSourceLine(trimmedCode)
+                actCode = trimmedCode;
+                return;
+            end
+
+            state.containerDepth = state.containerDepth + obj.calculateContainerDepthDeltaOfLine(trimmedCode);
+            actCode = obj.appendContinuationMarkerIfNeeded(actCode, trimmedCode, state.containerDepth);
+            trimmedCode = strtrim(actCode);
+
+            if obj.shouldAccumulateContinuousLine(trimmedCode, splittingPos, state.isInContinousLine)
+                state.isInContinousLine = true;
+                state = obj.appendContinuousLine(state, actCode, actComment);
+                wasDeferred = true;
+                return;
+            end
+
+            if state.isInContinousLine
+                state = obj.appendContinuousLine(state, actCode, actComment);
+            end
+        end
+
+        function actComment = adjustInlineCommentSpacing(obj, actCode, actComment)
+            if isempty(actComment) || ~obj.shouldPreserveInlineCommentSpacing()
+                return;
+            end
+
+            commentSpacing = regexp(actCode, '\s+$', 'match', 'once');
+            if ~isempty(commentSpacing)
+                actComment = [commentSpacing, actComment];
+            end
+        end
+
+        function actCode = appendContinuationMarkerIfNeeded(~, actCode, trimmedCode, containerDepth)
+            % Auto append "..." to the lines of continuous containers.
+            if ~containerDepth || (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
+                return;
+            end
+
+            if strcmp(trimmedCode(end), ',') || strcmp(trimmedCode(end), ';')
+                actCode = [trimmedCode, ' ...'];
+            else
+                actCode = [actCode, '; ...'];
+            end
+        end
+
+        function tf = shouldAccumulateContinuousLine(~, trimmedCode, splittingPos, isInContinousLine)
+            tf = (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...')) ...
+                || (isequal(splittingPos, 1) && isInContinousLine);
+        end
+
+        function state = appendContinuousLine(~, state, actCode, actComment)
+            state.continuousLineCount = state.continuousLineCount + 1;
+            state.continuousLines{state.continuousLineCount, 1} = actCode;
+            state.continuousLines{state.continuousLineCount, 2} = actComment;
+        end
+
+        function actCodeFinal = formatCodeByContext(obj, actCode, currentContext)
+            if strcmp(currentContext, 'argumentsDeclaration')
+                actCodeFinal = obj.formatDeclarationLine(actCode);
+            else
+                actCodeFinal = obj.performReplacements(actCode);
+            end
+        end
+
+        function replacedTextArray = finalizeOutputEntries(~, replacedTextArray, options)
+            % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one.
+            if ~isempty(replacedTextArray) && ~isempty(strtrim(replacedTextArray{end}))
+                replacedTextArray{end} = strtrim(replacedTextArray{end});
+            end
+
+            if options.formatStartingNewlines
+                replacedTextArray = MBeautifier.MFormatter.handleStartingEmptyLines( ...
+                    replacedTextArray, options.startingNewlines);
+            end
+
+            if options.formatEndingNewlines
+                replacedTextArray = MBeautifier.MFormatter.handleTrailingEmptyLines( ...
+                    replacedTextArray, options.endingNewlines);
+            end
+        end
+
         function actCodeTemp = replaceStrings(obj, actCode)
             % Replaces strings in the code with string tokens memorizing the original text
 
@@ -535,7 +646,8 @@ classdef MFormatter < handle
             end
 
             % Convert all operators like + * == etc to #MBeautifier_OP_whatever# tokens
-            opBuffer = {};
+            opBuffer = cell(1, numel(operatorPaddingRules));
+            opBufferCount = 0;
             operatorList = obj.AllOperators;
             operatorAppearance = regexp(data, operatorList);
 
@@ -545,11 +657,13 @@ classdef MFormatter < handle
                     currOpStruct = obj.Configuration.operatorPaddingRule(currField);
                     dataNew = regexprep(data, ['\s*', currOpStruct.ValueFrom, '\s*'], currOpStruct.Token);
                     if ~strcmp(data, dataNew)
-                        opBuffer{end+1} = currField;
+                        opBufferCount = opBufferCount + 1;
+                        opBuffer{opBufferCount} = currField;
                     end
                     data = dataNew;
                 end
             end
+            opBuffer = opBuffer(1:opBufferCount);
 
             % Remove all duplicate space
             data = regexprep(data, '\s+', ' ');
@@ -585,7 +699,8 @@ classdef MFormatter < handle
                         '#MBeauty_ArrayToken_\d+#$'];
                     keywordMatch = ['(?=^|\s)(', MBeautifier.MFormatter.joinString(keywords', '|'), ')$'];
 
-                    replaceTokens = {};
+                    replaceTokens = cell(1, max(0, numel(splittedData) - 1));
+                    replaceTokenCount = 0;
                     for iSplit = 1:numel(splittedData) - 1
                         beforeItem = strtrim(splittedData{iSplit});
                         if ~isempty(beforeItem) && ...
@@ -606,27 +721,33 @@ classdef MFormatter < handle
                             % In this case the + and - signs are not operators so shoud be skipped
                             if numel(beforeItem) > 1 && strcmpi(beforeItem(end), 'e') && numel(regexp(beforeItem(end-1), '[0-9.]'))
                                 if isPlus
-                                    replaceTokens{end+1} = MBeautifier.MFormatter.TokenStruct.NormNotationPlus.Token;
+                                    replaceTokenCount = replaceTokenCount + 1;
+                                    replaceTokens{replaceTokenCount} = MBeautifier.MFormatter.TokenStruct.NormNotationPlus.Token;
                                     normPlusOperatorPresent = true;
                                 else
-                                    replaceTokens{end+1} = MBeautifier.MFormatter.TokenStruct.NormNotationMinus.Token;
+                                    replaceTokenCount = replaceTokenCount + 1;
+                                    replaceTokens{replaceTokenCount} = MBeautifier.MFormatter.TokenStruct.NormNotationMinus.Token;
                                     normMinusOperatorPresent = true;
                                 end
                             else
-                                replaceTokens{end+1} = opToken;
+                                replaceTokenCount = replaceTokenCount + 1;
+                                replaceTokens{replaceTokenCount} = opToken;
                             end
                         else
                             if isPlus
-                                replaceTokens{end+1} = MBeautifier.MFormatter.TokenStruct.UnaryPlus.Token;
+                                replaceTokenCount = replaceTokenCount + 1;
+                                replaceTokens{replaceTokenCount} = MBeautifier.MFormatter.TokenStruct.UnaryPlus.Token;
                                 unaryPlusOperatorPresent = true;
                             else
-                                replaceTokens{end+1} = MBeautifier.MFormatter.TokenStruct.UnaryMinus.Token;
+                                replaceTokenCount = replaceTokenCount + 1;
+                                replaceTokens{replaceTokenCount} = MBeautifier.MFormatter.TokenStruct.UnaryMinus.Token;
                                 unaryMinusOperatorPresent = true;
                             end
                         end
                     end
 
-                    replacedSplittedData = cell(1, numel(replaceTokens)+numel(splittedData));
+                    replaceTokens = replaceTokens(1:replaceTokenCount);
+                    replacedSplittedData = cell(1, numel(replaceTokens) + numel(splittedData));
                     tokenIndex = 1;
                     for iSplit = 1:numel(splittedData)
                         replacedSplittedData{iSplit*2-1} = splittedData{iSplit};
@@ -716,40 +837,17 @@ classdef MFormatter < handle
             data = strtrim(data);
         end
 
-        function isFormattingOff = updateFormattingDirectiveState(obj, line, isInContinousLine, isFormattingOff)
-            % Directive changes only affect standalone code lines outside block comments.
-            if isInContinousLine || obj.IsInBlockComment
-                return;
-            end
-
-            directiveChange = obj.DirectiveDirector.updateFromLine(line);
-            if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.NONE)
-                return;
-            end
-
-            switch lower(directiveChange.DirectiveName)
-                case 'format'
-                    if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.REMOVED)
-                        isFormattingOff = false;
-                    elseif isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.ADDED) ...
-                            || isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.CHANGED)
-                        isFormattingOff = numel(directiveChange.Directive.Values) > 0 ...
-                            && strcmpi(directiveChange.Directive.Values{1}, 'off');
-                    end
-                otherwise
-                    % Ignore unknown directives here. DirectiveDirector already warns when needed.
-            end
-        end
-
         function line = formatContinuousLine(obj, contLineArray, actComment, contTokenStruct, newLine)
-            replacedLines = '';
-            for iLine = 1:size(contLineArray, 1) - 1
+            lineCount = size(contLineArray, 1);
+            lineParts = cell(1, lineCount);
+            for iLine = 1:lineCount - 1
                 tempRow = strtrim(contLineArray{iLine, 1});
                 tempRow = [tempRow(1:end-3), [' ', contTokenStruct.Token, ' ']];
                 tempRow = regexprep(tempRow, ['\s+', contTokenStruct.Token, '\s+'], [' ', contTokenStruct.Token, ' ']);
-                replacedLines = [replacedLines, tempRow];
+                lineParts{iLine} = tempRow;
             end
-            replacedLines = [replacedLines, contLineArray{end, 1}];
+            lineParts{lineCount} = contLineArray{end, 1};
+            replacedLines = [lineParts{:}];
 
             actCodeFinal = obj.performReplacements(replacedLines);
             [startIndices, endIndices] = regexp(actCodeFinal, '\s*#MBeutyCont(|Matrix|Curly)#');
@@ -781,26 +879,31 @@ classdef MFormatter < handle
         function line = rebuildContinuousLine(obj, contLineArray, actComment, actCodeFinal, startIndices, endIndices, contTokenStruct, newLine)
             linesAreMathing = numel(startIndices) == size(contLineArray, 1) - 1;
 
-            line = '';
+            lineParts = cell(1, numel(startIndices) + 1);
+            linePartCount = 0;
             lastEndIndex = 0;
             for iMatch = 1:numel(startIndices)
                 partBefore = strtrim(actCodeFinal(lastEndIndex+1:startIndices(iMatch)-1));
                 lastEndIndex = endIndices(iMatch);
                 if linesAreMathing
-                    line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], contLineArray{iMatch, 2}, newLine];
+                    linePartCount = linePartCount + 1;
+                    lineParts{linePartCount} = [partBefore, [' ', contTokenStruct.StoredValue, ' '], contLineArray{iMatch, 2}, newLine];
                 else
-                    line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], newLine];
+                    linePartCount = linePartCount + 1;
+                    lineParts{linePartCount} = [partBefore, [' ', contTokenStruct.StoredValue, ' '], newLine];
                 end
             end
 
             if ~linesAreMathing
                 fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
                 if ~isempty(fullComment)
-                    line = [fullComment, newLine, line];
+                    linePartCount = linePartCount + 1;
+                    lineParts = [{[fullComment, newLine]}, lineParts(1:linePartCount)];
                 end
             end
 
-            line = [line, actCodeFinal(lastEndIndex+1:end), ' ', actComment];
+            lineParts{linePartCount+1} = [actCodeFinal(lastEndIndex+1:end), ' ', actComment];
+            line = [lineParts{1:linePartCount+1}];
         end
 
         function tf = isLikelyFunctionCallContainer(~, data, openingIndex)
@@ -1043,7 +1146,8 @@ classdef MFormatter < handle
         function [containerBorderIndexes, maxDepth] = calculateContainerDepths(~, data)
             % Calculates the container boundaries with container depth for a continous code line.
 
-            containerBorderIndexes = {};
+            containerBorderIndexes = cell(numel(data), 2);
+            borderCount = 0;
             depth = 1;
             maxDepth = 1;
             for i = 1:numel(data)
@@ -1059,11 +1163,13 @@ classdef MFormatter < handle
                 end
 
                 if borderFound
-                    containerBorderIndexes{end+1, 1} = i;
-                    containerBorderIndexes{end, 2} = depth;
+                    borderCount = borderCount + 1;
+                    containerBorderIndexes{borderCount, 1} = i;
+                    containerBorderIndexes{borderCount, 2} = depth;
                     depth = newDepth;
                 end
             end
+            containerBorderIndexes = containerBorderIndexes(1:borderCount, :);
         end
 
         function [data, arrayMap] = replaceContainer(obj, data)
@@ -1373,7 +1479,8 @@ classdef MFormatter < handle
         end
 
         function fullComment = buildContinousLineCommentAsPrecedingLines(~, contLineArray)
-            comments = {};
+            comments = cell(1, max(0, size(contLineArray, 1) - 1));
+            commentCount = 0;
             for iCont = 1:size(contLineArray, 1) - 1
                 cComment = contLineArray{iCont, 2};
                 if isempty(strtrim(cComment))
@@ -1382,13 +1489,14 @@ classdef MFormatter < handle
                 if ~numel(regexp(cComment, '^\s*%'))
                     cComment = ['% ', cComment];
                 end
-                comments{end+1} = cComment; %#ok<AGROW>
+                commentCount = commentCount + 1;
+                comments{commentCount} = cComment;
             end
 
-            if isempty(comments)
+            if commentCount == 0
                 fullComment = '';
             else
-                fullComment = strjoin(comments, MBeautifier.Constants.NewLine);
+                fullComment = strjoin(comments(1:commentCount), MBeautifier.Constants.NewLine);
             end
         end
 
@@ -1407,6 +1515,65 @@ classdef MFormatter < handle
         function tf = isCompactTryCatch(~, trimmedCode)
             tf = ~isempty(regexp(trimmedCode, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
                 ~isempty(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'));
+        end
+    end
+
+    methods (Access = private, Static)
+        function [buffer, count] = appendOutputEntries(buffer, count, entries)
+            if isempty(entries)
+                return;
+            end
+
+            neededCount = count + numel(entries);
+            if neededCount > numel(buffer)
+                newCapacity = max(neededCount, max(16, numel(buffer) * 2));
+                buffer{newCapacity} = '';
+            end
+
+            buffer(count+1:neededCount) = entries;
+            count = neededCount;
+        end
+
+        function [buffer, count] = appendRepeatedEntry(buffer, count, entry, repeatCount)
+            if repeatCount <= 0
+                return;
+            end
+
+            repeatedEntries = repmat({entry}, 1, repeatCount);
+            [buffer, count] = MBeautifier.MFormatter.appendOutputEntries(buffer, count, repeatedEntries);
+        end
+
+        function [buffer, count] = replaceOutputEntries(buffer, entries)
+            count = numel(entries);
+            if count == 0
+                return;
+            end
+
+            if count > numel(buffer)
+                buffer{count} = '';
+            end
+
+            buffer(1:count) = entries;
+        end
+
+        function [parts, count, lastChar] = appendTextPart(parts, count, text)
+            count = count + 1;
+            parts{count} = text;
+            lastChar = text(end);
+        end
+
+        function [parts, count] = trimLastOutputChar(parts, count)
+            if count == 0
+                return;
+            end
+
+            lastPart = parts{count};
+            if isscalar(lastPart)
+                parts{count} = '';
+                count = count - 1;
+            else
+                parts{count} = lastPart(1:end-1);
+            end
         end
     end
 end
