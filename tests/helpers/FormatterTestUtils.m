@@ -67,6 +67,10 @@ classdef FormatterTestUtils
             FormatterTestUtils.writeTextFile(path, text);
         end
 
+        function writeTextFileForTest(path, text)
+            FormatterTestUtils.writeTextFile(path, text);
+        end
+
         function path = copyFixtureToTemp(name)
             directory = FormatterTestUtils.createTempDirectory();
             path = fullfile(directory, name);

@@ -66,24 +66,7 @@ classdef MFormatter < handle
             for j = 1:numel(textArray)
                 line = textArray{j};
 
-                %% Check for directives if ...
-                % ... NOT in continous line
-                % ... NOT in block comment
-                if ~isInContinousLine && ~obj.IsInBlockComment
-                    directiveChange = obj.DirectiveDirector.updateFromLine(line);
-                    if ~isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.NONE)
-                        switch (lower(directiveChange.DirectiveName))
-                            case 'format'
-                                if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.REMOVED)
-                                    isFormattingOff = false;
-                                elseif isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.ADDED) || isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.CHANGED)
-                                    isFormattingOff = numel(directiveChange.Directive.Values) > 0 && strcmpi(directiveChange.Directive.Values{1}, 'off');
-                                end
-                            otherwise
-                                % Ignore
-                        end
-                    end
-                end
+                isFormattingOff = obj.updateFormattingDirectiveState(line, isInContinousLine, isFormattingOff);
 
                 if isFormattingOff
                     replacedTextArray = [replacedTextArray, line, MBeautifier.Constants.NewLine];
@@ -162,79 +145,7 @@ classdef MFormatter < handle
                             isInContinousLine = false;
                             contLineArray{end+1, 1} = actCode;
                             contLineArray{end, 2} = actComment;
-
-                            % Build the line for replacement
-                            replacedLines = '';
-                            for iLine = 1:size(contLineArray, 1) - 1
-                                tempRow = strtrim(contLineArray{iLine, 1});
-                                tempRow = [tempRow(1:end-3), [' ', contTokenStruct.Token, ' ']];
-                                tempRow = regexprep(tempRow, ['\s+', contTokenStruct.Token, '\s+'], [' ', contTokenStruct.Token, ' ']);
-                                replacedLines = [replacedLines, tempRow];
-                            end
-                            replacedLines = [replacedLines, actCode];
-
-                            % Replace
-                            actCodeFinal = obj.performReplacements(replacedLines);
-
-                            % Re-create the original structure
-
-                            if numel(contLineArray)
-                                [startIndices, endIndices] = regexp(actCodeFinal, '\s*#MBeutyCont(|Matrix|Curly)#');
-                                inliningwasDone = ~numel(startIndices);
-
-                                if inliningwasDone
-                                    fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
-
-                                    if isempty(fullComment)
-                                        line = actCodeFinal;
-                                    else
-                                        line = [fullComment, newLine, actCodeFinal];
-                                    end
-
-                                    lastComment = contLineArray{end, 2};
-                                    if ~isempty(strtrim(lastComment))
-                                        if ~numel(regexp(lastComment, '^\s*%'))
-                                            lastComment = ['% ', lastComment];
-                                        end
-                                        line = [line, ' ', lastComment];
-                                    end
-
-                                else
-                                    linesAreMathing = numel(startIndices) == size(contLineArray, 1) - 1;
-
-                                    line = '';
-                                    prevComment = '';
-                                    lastEndIndex = 0;
-                                    for iMatch = 1:numel(startIndices)
-                                        partBefore = strtrim(actCodeFinal(lastEndIndex+1:startIndices(iMatch)-1));
-                                        token = actCodeFinal(startIndices(iMatch):endIndices(iMatch));
-                                        lastEndIndex = endIndices(iMatch);
-                                        if linesAreMathing
-                                            line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], contLineArray{iMatch, 2}, newLine];
-                                        else
-                                            line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], newLine];
-                                        end
-                                    end
-                                    if ~linesAreMathing
-                                        fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
-                                        if ~isempty(fullComment)
-                                            line = [fullComment, newLine, line];
-                                        end
-                                    end
-
-                                    line = [line, actCodeFinal(lastEndIndex+1:end), ' ', actComment];
-                                    trimmedPrevComment = strtrim(prevComment);
-                                    if ~isempty(trimmedPrevComment)
-                                        if ~strcmpi(trimmedPrevComment(1), '%')
-                                            trimmedPrevComment = ['% ', trimmedPrevComment];
-                                        end
-                                        line = [trimmedPrevComment, newLine, line];
-                                    end
-                                end
-                            else
-                                line = [line, actComment];
-                            end
-
+                            line = obj.formatContinuousLine(contLineArray, actComment, contTokenStruct, newLine);
                             replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
                             contLineArray = cell(0, 2);
 
@@ -805,6 +716,113 @@ classdef MFormatter < handle
             data = strtrim(data);
         end
 
+        function isFormattingOff = updateFormattingDirectiveState(obj, line, isInContinousLine, isFormattingOff)
+            % Directive changes only affect standalone code lines outside block comments.
+            if isInContinousLine || obj.IsInBlockComment
+                return;
+            end
+
+            directiveChange = obj.DirectiveDirector.updateFromLine(line);
+            if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.NONE)
+                return;
+            end
+
+            switch lower(directiveChange.DirectiveName)
+                case 'format'
+                    if isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.REMOVED)
+                        isFormattingOff = false;
+                    elseif isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.ADDED) ...
+                            || isequal(directiveChange.Type, MBeautifier.DirectiveChangeType.CHANGED)
+                        isFormattingOff = numel(directiveChange.Directive.Values) > 0 ...
+                            && strcmpi(directiveChange.Directive.Values{1}, 'off');
+                    end
+                otherwise
+                    % Ignore unknown directives here. DirectiveDirector already warns when needed.
+            end
+        end
+
+        function line = formatContinuousLine(obj, contLineArray, actComment, contTokenStruct, newLine)
+            replacedLines = '';
+            for iLine = 1:size(contLineArray, 1) - 1
+                tempRow = strtrim(contLineArray{iLine, 1});
+                tempRow = [tempRow(1:end-3), [' ', contTokenStruct.Token, ' ']];
+                tempRow = regexprep(tempRow, ['\s+', contTokenStruct.Token, '\s+'], [' ', contTokenStruct.Token, ' ']);
+                replacedLines = [replacedLines, tempRow];
+            end
+            replacedLines = [replacedLines, contLineArray{end, 1}];
+
+            actCodeFinal = obj.performReplacements(replacedLines);
+            [startIndices, endIndices] = regexp(actCodeFinal, '\s*#MBeutyCont(|Matrix|Curly)#');
+            if isempty(startIndices)
+                line = obj.buildInlinedContinuousLine(contLineArray, actCodeFinal, newLine);
+                return;
+            end
+
+            line = obj.rebuildContinuousLine(contLineArray, actComment, actCodeFinal, startIndices, endIndices, contTokenStruct, newLine);
+        end
+
+        function line = buildInlinedContinuousLine(obj, contLineArray, actCodeFinal, newLine)
+            fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
+            if isempty(fullComment)
+                line = actCodeFinal;
+            else
+                line = [fullComment, newLine, actCodeFinal];
+            end
+
+            lastComment = contLineArray{end, 2};
+            if ~isempty(strtrim(lastComment))
+                if ~numel(regexp(lastComment, '^\s*%'))
+                    lastComment = ['% ', lastComment];
+                end
+                line = [line, ' ', lastComment];
+            end
+        end
+
+        function line = rebuildContinuousLine(obj, contLineArray, actComment, actCodeFinal, startIndices, endIndices, contTokenStruct, newLine)
+            linesAreMathing = numel(startIndices) == size(contLineArray, 1) - 1;
+
+            line = '';
+            lastEndIndex = 0;
+            for iMatch = 1:numel(startIndices)
+                partBefore = strtrim(actCodeFinal(lastEndIndex+1:startIndices(iMatch)-1));
+                lastEndIndex = endIndices(iMatch);
+                if linesAreMathing
+                    line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], contLineArray{iMatch, 2}, newLine];
+                else
+                    line = [line, partBefore, [' ', contTokenStruct.StoredValue, ' '], newLine];
+                end
+            end
+
+            if ~linesAreMathing
+                fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
+                if ~isempty(fullComment)
+                    line = [fullComment, newLine, line];
+                end
+            end
+
+            line = [line, actCodeFinal(lastEndIndex+1:end), ' ', actComment];
+        end
+
+        function tf = isLikelyFunctionCallContainer(~, data, openingIndex)
+            % Treat known functions on the MATLAB path as calls, not matrix indexing.
+            tf = false;
+            if openingIndex <= 1 || data(openingIndex) ~= '('
+                return;
+            end
+
+            candidate = regexp(data(1:openingIndex-1), '([a-zA-Z][a-zA-Z0-9_]*)\s*$', 'tokens', 'once');
+            if isempty(candidate)
+                return;
+            end
+
+            candidateName = candidate{1};
+            if any(strcmp(candidateName, iskeyword()))
+                return;
+            end
+
+            tf = exist(candidateName) ~= 0; %#ok<EXIST>
+        end
+
         function line = buildFormattedLine(obj, actCodeFinal, actComment)
             trimmedCode = strtrim(actCodeFinal);
             trimmedComment = strtrim(actComment);
@@ -1127,6 +1145,11 @@ classdef MFormatter < handle
                     end
                 end
 
+                if isContainerIndexing && strcmp(openingBracket, '(') ...
+                        && obj.isLikelyFunctionCallContainer(data, containerBorderIndexes{indexes(1), 1})
+                    isContainerIndexing = false;
+                end
+
                 %%
 
                 doIndexing = isContainerIndexing;
@@ -1158,7 +1181,7 @@ classdef MFormatter < handle
                         firstElem = strtrim(elementsCell{1});
                         lastElem = strtrim(elementsCell{end});
 
-                        if numel(elementsCell) == 1
+                        if isscalar(elementsCell)
                             elementsCell{1} = firstElem(2:end-1);
                         else
                             elementsCell{1} = firstElem(2:end);

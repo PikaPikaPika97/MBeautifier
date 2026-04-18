@@ -169,7 +169,7 @@ Currently four approaches are supported:
 
   - `addpath('C:\path\to\MBeautifier'); MBeautify.formatCurrentEditorPage();`
   - `addpath('C:\path\to\MBeautifier'); MBeautify.formatEditorSelection();`
-  - `addpath('C:\path\to\MBeautifier'); [sourceFile, sourcePath] = uigetfile(); drawnow(); sourceFile = fullfile(sourcePath, sourceFile); if isempty(sourceFile), return; end, [destFile, destPath] = uiputfile(); drawnow(); destFile = fullfile(destPath, destFile); if isempty(destFile), return; end, MBeautify.formatFile(sourceFile, destFile);`
+  - `addpath('C:\path\to\MBeautifier'); [sourceFile, sourcePath] = uigetfile(); drawnow(); if isequal(sourceFile, 0) || isequal(sourcePath, 0), return; end; sourceFile = fullfile(sourcePath, sourceFile); [destFile, destPath] = uiputfile(); drawnow(); if isequal(destFile, 0) || isequal(destPath, 0), return; end; destFile = fullfile(destPath, destFile); MBeautify.formatFile(sourceFile, destFile);`
  
 The shortcut commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
 
@@ -183,19 +183,19 @@ MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.P
 
 ### Internal Architecture
 
-`MBeautify.m` is the public facade. Headless formatting and file-system validation are routed through `+MBeautifier/FormattingPipeline.m`, while MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`.
+`MBeautify.m` is the public facade. Headless formatting, batch orchestration, and file-system validation are routed through `+MBeautifier/FormattingPipeline.m`, while MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`.
 
 The core text transformation still happens in `+MBeautifier/MFormatter.m` and `+MBeautifier/MIndenter.m`. Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`.
 
 ### Tests
 
-The repository includes a headless `matlab.unittest` suite under `tests/`.
+The repository includes a `matlab.unittest` suite under `tests/`.
 
 Run the full suite from MATLAB with:
 
     tests/run_all_tests
 
-Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite focuses on formatter and indenter behavior that does not depend on `matlab.desktop.editor`. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a quarantined known-bug fixture.
+Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite covers both the headless formatting pipeline and MATLAB desktop editor smoke flows. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a targeted regression fixture for issue `#35`.
 
 Focused coverage currently includes:
 
@@ -203,14 +203,17 @@ Focused coverage currently includes:
  - indentation-specific rules under `tests/TestIndentationRules.m`
  - batch formatting behavior under `tests/TestBatchFormatting.m`
  - public API failure paths and desktop integration state handling
+ - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
  
- Supported Matlab versions
- -------------------------
- 
- The oldest version of MATLAB to be used to test MBeautifier is R2013b.
- 
- Planned future versions
- -----------------------
+Compatibility note
+------------------
+
+MBeautifier is currently validated against the recent MATLAB releases used for active development. Older MATLAB releases may still work, especially for the headless formatting pipeline, but they are no longer continuously tested in this repository.
+
+Desktop integration has a narrower compatibility boundary than the headless pipeline because it depends on `matlab.desktop.editor` and `com.mathworks.services.Prefs`.
+
+Planned future versions
+-----------------------
  
 It is planned that the project is maintained until MATLAB is shipped with a code formatter with a similar functionality.
  

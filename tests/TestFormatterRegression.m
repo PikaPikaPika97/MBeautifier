@@ -35,12 +35,18 @@ classdef TestFormatterRegression < matlab.unittest.TestCase
                 FormatterTestUtils.normalizeText(expected));
         end
 
-        function testKnownBugFixtureIsTracked(testCase)
+        function testKnownBugFixtureIsFormattedLikeTheGoldenOutput(testCase)
             bugFixturePath = FormatterTestUtils.fixturePath('testfile_bugs.m');
             testCase.verifyTrue(exist(bugFixturePath, 'file') == 2);
-            testCase.assumeTrue(false, ...
-                ['Known bug fixture remains quarantined until the ', ...
-                'corresponding formatter issue is fixed.']);
+
+            input = FormatterTestUtils.readText(bugFixturePath);
+            formatted = FormatterTestUtils.formatText(input);
+
+            testCase.verifyEqual( ...
+                FormatterTestUtils.normalizeText(formatted), ...
+                FormatterTestUtils.normalizeText(input), ...
+                ['Issue #35 must keep arithmetic spacing in function calls even when ', ...
+                'matrix indexing arithmetic padding is disabled.']);
         end
     end
 end

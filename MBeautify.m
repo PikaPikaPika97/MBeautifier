@@ -78,23 +78,8 @@ classdef MBeautify
             if ~exist('editor','var') || isempty(editor)
                 editor = true;
             end
-            
-            MBeautifier.FormattingPipeline.requireExistingDirectory(directory);
 
-            if recurse
-                directory = fullfile(directory, '**');
-            end
-            
-            files = dir(fullfile(directory, fileFilter));
-            
-            for iF = 1:numel(files)
-                file = fullfile(files(iF).folder, files(iF).name);
-                if editor
-                    MBeautify.formatFile(file, file);
-                else
-                    MBeautify.formatFileNoEditor(file, file);
-                end
-            end
+            MBeautifier.FormattingPipeline.formatFiles(directory, fileFilter, recurse, editor);
         end
         
         function formatEditorSelection(doSave)

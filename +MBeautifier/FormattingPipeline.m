@@ -16,6 +16,16 @@ classdef FormattingPipeline
             MBeautifier.FormattingPipeline.writeTextFile(outFile, text);
         end
 
+        function formatFiles(directory, fileFilter, recurse, editor)
+            MBeautifier.FormattingPipeline.requireExistingDirectory(directory);
+
+            files = MBeautifier.FormattingPipeline.collectFiles(directory, fileFilter, recurse);
+            for iF = 1:numel(files)
+                file = fullfile(files(iF).folder, files(iF).name);
+                MBeautifier.FormattingPipeline.formatFileInPlace(file, editor);
+            end
+        end
+
         function formattedText = formatText(text, configuration)
             % Format and indent plain text using the active configuration.
             formatter = MBeautifier.MFormatter(configuration);
@@ -81,6 +91,22 @@ classdef FormattingPipeline
     end
 
     methods (Static, Access = private)
+        function files = collectFiles(directory, fileFilter, recurse)
+            if recurse
+                directory = fullfile(directory, '**');
+            end
+
+            files = dir(fullfile(directory, fileFilter));
+        end
+
+        function formatFileInPlace(file, useEditor)
+            if useEditor
+                MBeautifier.EditorApp.formatFile(file, file);
+            else
+                MBeautifier.FormattingPipeline.formatFileNoEditor(file, file);
+            end
+        end
+
         function path = rulesXmlFileFull()
             path = fullfile(fileparts(fileparts(mfilename('fullpath'))), ...
                 'resources', 'settings', 'MBeautyConfigurationRules.xml');

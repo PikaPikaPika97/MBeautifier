@@ -1,7 +1,6 @@
-% This file should NOT change when run through MBeautify, but
-% currently these examples trigger known bugs, and are therefore
-% excluded from testfile.m.
-% As soon as the bug is fixed, these should be moved to testfile.m.
+% Targeted regression fixture for issue #35.
+% These examples must remain stable when formatted with the default
+% configuration, even though matrix indexing arithmetic padding is disabled.
 
 % #35, if ArithmeticOperatorPadding=0
 trace(3 + 4)
