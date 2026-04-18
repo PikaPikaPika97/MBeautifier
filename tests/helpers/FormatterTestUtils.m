@@ -43,9 +43,7 @@ classdef FormatterTestUtils
             end
 
             configuration = FormatterTestUtils.loadConfiguration(overrides);
-            formatter = MBeautifier.MFormatter(configuration);
-            indenter = MBeautifier.MIndenter(configuration);
-            formatted = indenter.performIndenting(formatter.performFormatting(text));
+            formatted = MBeautifier.FormattingPipeline.formatText(text, configuration);
         end
 
         function directory = createTempDirectory()

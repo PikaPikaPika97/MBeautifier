@@ -5,18 +5,18 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
         function testTemporaryEditorIndentPreferenceIsRestoredAfterError(testCase)
             configuration = FormatterTestUtils.loadConfiguration( ...
                 struct('Indentation_Strategy', 'nestedfunctions'));
-            originalPreference = MBeautify.getEditorIndentPreference();
+            originalPreference = MBeautifier.EditorApp.getEditorIndentPreference();
             testPreference = 'ClassicFunctionIndent';
 
-            MBeautify.setEditorIndentPreference(testPreference);
-            cleanup = onCleanup(@() MBeautify.setEditorIndentPreference(originalPreference));
+            MBeautifier.EditorApp.setEditorIndentPreference(testPreference);
+            cleanup = onCleanup(@() MBeautifier.EditorApp.setEditorIndentPreference(originalPreference)); %#ok<NASGU>
 
             testCase.verifyError( ...
-                @() MBeautify.runWithTemporaryEditorIndentPreference(configuration, ...
+                @() MBeautifier.EditorApp.runWithTemporaryEditorIndentPreference(configuration, ...
                 @() error('MBeautifier:Test:ForcedFailure', 'Forced failure for cleanup verification.')), ...
                 'MBeautifier:Test:ForcedFailure');
 
-            testCase.verifyEqual(MBeautify.getEditorIndentPreference(), testPreference);
+            testCase.verifyEqual(MBeautifier.EditorApp.getEditorIndentPreference(), testPreference);
         end
     end
 end
