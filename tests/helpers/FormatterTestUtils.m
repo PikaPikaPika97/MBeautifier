@@ -46,6 +46,10 @@ classdef FormatterTestUtils
             formatted = MBeautifier.FormattingPipeline.formatText(text, configuration);
         end
 
+        function formatted = formatTextWithConfiguration(text, configuration)
+            formatted = MBeautifier.FormattingPipeline.formatText(text, configuration);
+        end
+
         function indented = indentText(text, overrides)
             if nargin < 2
                 overrides = struct();
@@ -71,6 +75,34 @@ classdef FormatterTestUtils
             FormatterTestUtils.writeTextFile(path, text);
         end
 
+        function path = writeConfigurationFile(directory, fileName, overrides)
+            if nargin < 3
+                overrides = struct();
+            end
+
+            text = FormatterTestUtils.readText(FormatterTestUtils.baseConfigurationPath());
+            text = FormatterTestUtils.applyConfigurationOverrides(text, overrides);
+            path = fullfile(directory, fileName);
+            FormatterTestUtils.writeTextFile(path, text);
+        end
+
+        function path = writeProjectConfiguration(directory, overrides)
+            if nargin < 2
+                overrides = struct();
+            end
+
+            path = FormatterTestUtils.writeConfigurationFile(directory, '.mbeautifier.xml', overrides);
+        end
+
+        function ids = checkcodeIds(path)
+            issues = checkcode(path, '-id');
+            if isempty(issues)
+                ids = {};
+            else
+                ids = {issues.id};
+            end
+        end
+
         function path = copyFixtureToTemp(name)
             directory = FormatterTestUtils.createTempDirectory();
             path = fullfile(directory, name);
@@ -81,6 +113,11 @@ classdef FormatterTestUtils
     methods (Static, Access = private)
         function path = createConfigurationCopy(overrides)
             text = FormatterTestUtils.readText(FormatterTestUtils.baseConfigurationPath());
+            text = FormatterTestUtils.applyConfigurationOverrides(text, overrides);
+            path = FormatterTestUtils.writeTempTextFile('MBeautyConfigurationRules.xml', text);
+        end
+
+        function text = applyConfigurationOverrides(text, overrides)
             keys = fieldnames(overrides);
 
             for idx = 1:numel(keys)
@@ -98,8 +135,6 @@ classdef FormatterTestUtils
                     text = [text(1:startIndex-1), replacement, text(endIndex+1:end)];
                 end
             end
-
-            path = FormatterTestUtils.writeTempTextFile('MBeautyConfigurationRules.xml', text);
         end
 
         function block = specialRuleBlock(key, value)

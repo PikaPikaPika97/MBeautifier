@@ -22,6 +22,26 @@ classdef TestPublicApiFailures < matlab.unittest.TestCase
                 'MBeautifier:FileDoesNotExist');
         end
 
+        function testCheckFileErrorsForMissingFile(testCase)
+            missingFile = fullfile(tempdir, 'mbeautifier_missing_file_check.m');
+            if exist(missingFile, 'file') == 2
+                delete(missingFile);
+            end
+
+            testCase.verifyError(@() MBeautify.checkFile(missingFile), ...
+                'MBeautifier:FileDoesNotExist');
+        end
+
+        function testDiffFileErrorsForMissingFile(testCase)
+            missingFile = fullfile(tempdir, 'mbeautifier_missing_file_diff.m');
+            if exist(missingFile, 'file') == 2
+                delete(missingFile);
+            end
+
+            testCase.verifyError(@() MBeautify.diffFile(missingFile), ...
+                'MBeautifier:FileDoesNotExist');
+        end
+
         function testFormatCurrentEditorPageErrorsWithoutActiveEditor(testCase)
             testCase.assumeTrue(isempty(matlab.desktop.editor.getActive()), ...
                 'This test requires the MATLAB Editor to have no active page.');

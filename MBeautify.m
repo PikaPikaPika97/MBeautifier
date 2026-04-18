@@ -23,7 +23,7 @@ classdef MBeautify
     
     methods (Static = true)
         
-        function formatFileNoEditor(file, outFile)
+        function formatFileNoEditor(file, varargin)
             % Format file outside of editor
             % function formatFileNoEditor(file, outFile)
             %
@@ -33,14 +33,21 @@ classdef MBeautify
             % same, in which case the format operation is carried out
             % in-place.
             %
-            if nargin < 2
-                MBeautifier.FormattingPipeline.formatFileNoEditor(file);
+            [outFile, optionArgs] = MBeautify.extractOptionalOutputPath(varargin);
+
+            if isempty(outFile)
+                MBeautifier.FormattingPipeline.formatFileNoEditor(file, optionArgs{:});
             else
-                MBeautifier.FormattingPipeline.formatFileNoEditor(file, outFile);
+                MBeautifier.FormattingPipeline.formatFileNoEditor(file, outFile, optionArgs{:});
             end
         end
+
+        function formattedText = formatText(text, varargin)
+            % Format plain MATLAB source text without editor integration.
+            formattedText = MBeautifier.FormattingPipeline.formatTextWithResolvedConfiguration(text, varargin{:});
+        end
         
-        function formatFile(file, outFile)
+        function formatFile(file, varargin)
             % Format file in editor
             % function formatFile(file, outFile)
             %
@@ -48,14 +55,16 @@ classdef MBeautify
             % argument is also specified, the formatted source is saved to this file and it is closed if it wasn't already
             % open in the Editor. Otherwise the formatted input file remains opened in the Matlab Editor.
             % The input and the output file can be the same.
-            if nargin < 2
-                MBeautifier.EditorApp.formatFile(file);
+            [outFile, optionArgs] = MBeautify.extractOptionalOutputPath(varargin);
+
+            if isempty(outFile)
+                MBeautifier.EditorApp.formatFile(file, optionArgs{:});
             else
-                MBeautifier.EditorApp.formatFile(file, outFile);
+                MBeautifier.EditorApp.formatFile(file, outFile, optionArgs{:});
             end
         end
         
-        function formatFiles(directory, fileFilter, recurse, editor)
+        function formatFiles(directory, varargin)
             % Format multiple files in-place. Supports file type filtering and subfolder recursion
             % function formatFiles(directory, fileFilter, recurse)
             %
@@ -66,20 +75,33 @@ classdef MBeautify
             %
             % Recurse defaults to false. Set true to recurse subfolders of directory.
             % Editor defaults to true.  Set to false to format files outside the editor.
-            
-            if nargin < 2
-                fileFilter = '*.m';
-            end
-            
-            if ~exist('recurse','var') || isempty(recurse)
-                recurse = false;
-            end
-            
-            if ~exist('editor','var') || isempty(editor)
-                editor = true;
-            end
+            [fileFilter, recurse, editor, optionArgs] = MBeautify.parseBatchArguments(varargin, true);
 
-            MBeautifier.FormattingPipeline.formatFiles(directory, fileFilter, recurse, editor);
+            MBeautifier.FormattingPipeline.formatFiles(directory, fileFilter, recurse, editor, optionArgs{:});
+        end
+
+        function result = checkFile(file, varargin)
+            % Inspect a file without rewriting it.
+            [editor, optionArgs] = MBeautify.extractEditorOption(varargin, false);
+            result = MBeautifier.FormattingPipeline.checkFile(file, editor, optionArgs{:});
+        end
+
+        function result = diffFile(file, varargin)
+            % Return a lightweight diff summary for a file without rewriting it.
+            [editor, optionArgs] = MBeautify.extractEditorOption(varargin, false);
+            result = MBeautifier.FormattingPipeline.diffFile(file, editor, optionArgs{:});
+        end
+
+        function result = checkFiles(directory, varargin)
+            % Inspect multiple files without rewriting them.
+            [fileFilter, recurse, editor, optionArgs] = MBeautify.parseBatchArguments(varargin, false);
+            result = MBeautifier.FormattingPipeline.checkFiles(directory, fileFilter, recurse, editor, optionArgs{:});
+        end
+
+        function result = diffFiles(directory, varargin)
+            % Return lightweight diff summaries for multiple files without rewriting them.
+            [fileFilter, recurse, editor, optionArgs] = MBeautify.parseBatchArguments(varargin, false);
+            result = MBeautifier.FormattingPipeline.diffFiles(directory, fileFilter, recurse, editor, optionArgs{:});
         end
         
         function formatEditorSelection(doSave)
@@ -124,6 +146,112 @@ classdef MBeautify
             %   'file' - MBeauty.formatFile
             
             MBeautyShortcuts.createShortcut(mode);
+        end
+    end
+
+    methods (Static, Access = private)
+        function [outFile, optionArgs] = extractOptionalOutputPath(args)
+            outFile = [];
+            optionArgs = args;
+
+            if isempty(args)
+                return;
+            end
+
+            if MBeautify.isOptionName(args{1})
+                return;
+            end
+
+            outFile = args{1};
+            optionArgs = args(2:end);
+        end
+
+        function [fileFilter, recurse, editor, optionArgs] = parseBatchArguments(args, defaultEditor)
+            optionStart = numel(args) + 1;
+            for idx = 1:numel(args)
+                if MBeautify.isOptionName(args{idx})
+                    optionStart = idx;
+                    break;
+                end
+            end
+
+            positionalArgs = args(1:optionStart-1);
+            optionArgs = args(optionStart:end);
+
+            fileFilter = '*.m';
+            recurse = false;
+            editor = defaultEditor;
+
+            if numel(positionalArgs) > 3
+                error('MBeautifier:InvalidBatchArguments', ...
+                    'Too many positional batch formatting arguments were provided.');
+            end
+
+            if numel(positionalArgs) >= 1
+                fileFilter = positionalArgs{1};
+            end
+
+            if numel(positionalArgs) >= 2
+                recurse = positionalArgs{2};
+            end
+
+            if numel(positionalArgs) >= 3
+                editor = positionalArgs{3};
+            end
+
+            [editor, optionArgs] = MBeautify.extractEditorOption(optionArgs, editor);
+        end
+
+        function [editor, optionArgs] = extractEditorOption(args, defaultEditor)
+            editor = defaultEditor;
+            optionArgs = {};
+
+            if isempty(args)
+                return;
+            end
+
+            if mod(numel(args), 2) ~= 0
+                error('MBeautifier:InvalidNameValueArguments', ...
+                    'Name-value arguments must be provided in pairs.');
+            end
+
+            for idx = 1:2:numel(args)
+                optionName = args{idx};
+                optionValue = args{idx+1};
+
+                if MBeautify.isNamedOption(optionName, 'editor')
+                    if ~(isscalar(optionValue) && (islogical(optionValue) || isnumeric(optionValue)))
+                        error('MBeautifier:IllegalOption:Editor', ...
+                            'The "Editor" option must be a logical scalar.');
+                    end
+
+                    editor = logical(optionValue);
+                else
+                    optionArgs = [optionArgs, args(idx:idx+1)]; %#ok<AGROW>
+                end
+            end
+        end
+
+        function tf = isOptionName(value)
+            tf = MBeautify.isNamedOption(value, 'configuration') || ...
+                MBeautify.isNamedOption(value, 'configurationfile') || ...
+                MBeautify.isNamedOption(value, 'editor');
+        end
+
+        function tf = isNamedOption(value, optionName)
+            tf = false;
+
+            if isstring(value)
+                if isscalar(value)
+                    value = char(value);
+                else
+                    return;
+                end
+            end
+
+            if ischar(value)
+                tf = strcmpi(strtrim(value), optionName);
+            end
         end
     end
 end
