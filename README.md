@@ -205,11 +205,11 @@ Use `tests/run_all_tests` as the stable entry point so the helper paths under `t
 Focused coverage currently includes:
 
  - formatter regression fixtures and modern formatting rules
-  - indentation-specific rules under `tests/TestIndentationRules.m`
-  - batch formatting behavior under `tests/TestBatchFormatting.m`
+ - indentation-specific rules under `tests/TestIndentationRules.m`
+ - batch formatting behavior under `tests/TestBatchFormatting.m`
  - structured `check` / `diff` inspection APIs and project-local configuration discovery
-  - public API failure paths and desktop integration state handling
-  - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
+ - public API failure paths and desktop integration state handling
+ - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
 
 For opt-in performance checks, run:
 
