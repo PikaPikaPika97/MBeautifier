@@ -157,15 +157,21 @@ Currently four approaches are supported:
  
 ### Shortcuts
  
- There is a possibility to create shortcuts for the first three approaches above, which shortcut buttons will appear under the "Shortcuts" tab of MATLAB's main window below Matlab R2019, and under "Favourites" and on the "Quick Access Toolbar" above.
+ Automatic shortcut creation is available for older MATLAB desktop releases, but MATLAB R2025a and newer no longer support this workflow reliably through the internal APIs used by MBeautifier.
  
- To create these buttons, the following commands can be used:
+ On releases older than MATLAB R2025a, the following commands can still be used to create shortcuts:
  
   - `MBeautify.createShortcut('editorpage')`: Creates a shortcut for `MBeautify.formatCurrentEditorPage()`  
   - `MBeautify.createShortcut('editorselection')`: Creates a shortcut for `MBeautify.formatEditorSelection()`
   - `MBeautify.createShortcut('file')`: Creates a shortcut for `MBeautify.formatFile(sourceFile, destFile)`
   
- These shortcuts will add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new Matlab instance is opened.
+ On MATLAB R2025a and newer, create a Favorite manually and, if desired, pin it to the Quick Access Toolbar. Use one of these commands as the Favorite code:
+
+  - `addpath('C:\path\to\MBeautifier'); MBeautify.formatCurrentEditorPage();`
+  - `addpath('C:\path\to\MBeautifier'); MBeautify.formatEditorSelection();`
+  - `addpath('C:\path\to\MBeautifier'); [sourceFile, sourcePath] = uigetfile(); drawnow(); sourceFile = fullfile(sourcePath, sourceFile); if isempty(sourceFile), return; end, [destFile, destPath] = uiputfile(); drawnow(); destFile = fullfile(destPath, destFile); if isempty(destFile), return; end, MBeautify.formatFile(sourceFile, destFile);`
+ 
+ The shortcut commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
 
 ### Tests
 
@@ -175,7 +181,7 @@ Run the full suite from MATLAB with:
 
     tests/run_all_tests
 
-The suite focuses on formatter and indenter behavior that does not depend on `matlab.desktop.editor`. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a quarantined known-bug fixture.
+Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite focuses on formatter and indenter behavior that does not depend on `matlab.desktop.editor`. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a quarantined known-bug fixture.
  
  Supported Matlab versions
  -------------------------

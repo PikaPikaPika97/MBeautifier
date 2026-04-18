@@ -40,29 +40,26 @@ classdef MBeautify
             % same, in which case the format operation is carried out
             % in-place.
             %
-            if ~exist(file, 'file')
-                return;
-            end
+            MBeautify.requireExistingFile(file);
             
             text = fileread(file);
             
             % Format the code
             configuration = MBeautify.getConfiguration();
-            formatter = MBeautifier.MFormatter(configuration);
-            text = formatter.performFormatting(text);
-            
-            % Indent the code
-            indenter = MBeautifier.MIndenter(configuration);
-            text = indenter.performIndenting(text);
+            text = MBeautify.formatText(text, configuration);
             
             if (nargin == 1)
                 outFile = file;
             end
             
             % write formatted text to file
-            fid = fopen(outFile, 'wt');
+            [fid, errorMessage] = fopen(outFile, 'wt');
+            if fid == -1
+                error('MBeautifier:OutputFileNotWritable', ...
+                    'Unable to open "%s" for writing. %s', outFile, errorMessage);
+            end
+            fileCloser = onCleanup(@() fclose(fid));
             fprintf(fid, '%s', text);
-            fclose(fid);
         end
         
         function formatFile(file, outFile)
@@ -73,16 +70,13 @@ classdef MBeautify
             % argument is also specified, the formatted source is saved to this file and it is closed if it wasn't already
             % open in the Editor. Otherwise the formatted input file remains opened in the Matlab Editor.
             % The input and the output file can be the same.
-            if ~exist(file, 'file')
-                return;
-            end
+            MBeautify.requireExistingFile(file);
             
             isOpen = matlab.desktop.editor.isOpen(file);
             document = matlab.desktop.editor.openDocument(file);
             % Format the code
             configuration = MBeautify.getConfiguration();
-            formatter = MBeautifier.MFormatter(configuration);
-            document.Text = formatter.performFormatting(document.Text);
+            document.Text = MBeautify.formatText(document.Text, configuration);
             
             MBeautify.indentPage(document, configuration);
             
@@ -148,16 +142,14 @@ classdef MBeautify
             % Optionally saves the file (if it is possible) and it is forced on the first argument (true). By default
             % the file is not saved.
             
-            currentEditorPage = matlab.desktop.editor.getActive();
-            
-            if isempty(currentEditorPage)
-                return;
-            end
+            currentEditorPage = MBeautify.requireActiveEditorPage();
             
             currentSelection = currentEditorPage.Selection;
             
             if isempty(currentEditorPage.SelectedText)
-                return;
+                error('MBeautifier:NoSelectedEditorText', ...
+                    ['The active MATLAB Editor page does not contain a selection. ', ...
+                    'Select the code you want to format and try again.']);
             end
             
             if nargin == 0
@@ -240,8 +232,7 @@ classdef MBeautify
             
             % Format the code
             configuration = MBeautify.getConfiguration();
-            formatter = MBeautifier.MFormatter(configuration);
-            formattedSource = formatter.performFormatting(codeToFormat);
+            formattedSource = MBeautify.formatText(codeToFormat, configuration);
             
             % Save back the modified data then use Matlab samrt indent functionality
             % Set back the selection
@@ -270,10 +261,7 @@ classdef MBeautify
             % Optionally saves the file (if it is possible) and it is forced on the first argument (true). By default
             % the file is not saved.
             
-            currentEditorPage = matlab.desktop.editor.getActive();
-            if isempty(currentEditorPage)
-                return;
-            end
+            currentEditorPage = MBeautify.requireActiveEditorPage();
             
             if nargin == 0
                 doSave = false;
@@ -283,8 +271,7 @@ classdef MBeautify
             
             % Format the code
             configuration = MBeautify.getConfiguration();
-            formatter = MBeautifier.MFormatter(configuration);
-            currentEditorPage.Text = formatter.performFormatting(currentEditorPage.Text);
+            currentEditorPage.Text = MBeautify.formatText(currentEditorPage.Text, configuration);
             
             % Use Smart Indent
             MBeautify.indentPage(currentEditorPage, configuration);
@@ -322,30 +309,14 @@ classdef MBeautify
     
     %% Private helpers
     
-    methods (Static = true, Access = private)
+    methods (Static = true, Access = ?matlab.unittest.TestCase)
         function indentPage(editorPage, configuration)
             %
             % function indentPage(editorPage, configuration)
             %
             
-            indentationStrategy = configuration.specialRule('Indentation_Strategy').Value;
-            originalPreference = com.mathworks.services.Prefs.getStringPref('EditorMFunctionIndentType');
-            
-            switch lower(indentationStrategy)
-                case 'allfunctions'
-                    com.mathworks.services.Prefs.setStringPref('EditorMFunctionIndentType', 'AllFunctionIndent');
-                case 'nestedfunctions'
-                    com.mathworks.services.Prefs.setStringPref('EditorMFunctionIndentType', 'MixedFunctionIndent');
-                case 'noindent'
-                    com.mathworks.services.Prefs.setStringPref('EditorMFunctionIndentType', 'ClassicFunctionIndent');
-            end
-            
-            editorPage.smartIndentContents();
-            
-            % Restore original settings, if necessary
-            if (length(originalPreference) > 0 && originalPreference ~= com.mathworks.services.Prefs.getStringPref('EditorMFunctionIndentType'))
-                com.mathworks.services.Prefs.setStringPref('EditorMFunctionIndentType', originalPreference);
-            end
+            MBeautify.runWithTemporaryEditorIndentPreference(configuration, ...
+                @() editorPage.smartIndentContents());
             
             indentationCharacter = configuration.specialRule('IndentationCharacter').Value;
             indentationCount = configuration.specialRule('IndentationCount').ValueAsDouble;
@@ -409,6 +380,70 @@ classdef MBeautify
             end
             
             editorPage.Text = strjoin(textArray, '\n');
+        end
+
+        function formattedText = formatText(text, configuration)
+            % Format and indent plain text using the active configuration.
+            formatter = MBeautifier.MFormatter(configuration);
+            indenter = MBeautifier.MIndenter(configuration);
+            formattedText = formatter.performFormatting(text);
+            formattedText = indenter.performIndenting(formattedText);
+        end
+
+        function runWithTemporaryEditorIndentPreference(configuration, callback)
+            originalPreference = MBeautify.getEditorIndentPreference();
+            restorePreference = onCleanup(@() MBeautify.restoreEditorIndentPreference(originalPreference));
+
+            MBeautify.applyEditorIndentPreference(configuration);
+            callback();
+        end
+
+        function file = requireExistingFile(file)
+            if exist(file, 'file') ~= 2
+                error('MBeautifier:FileDoesNotExist', ...
+                    'The file "%s" does not exist. Provide an existing MATLAB file to format.', file);
+            end
+        end
+
+        function currentEditorPage = requireActiveEditorPage()
+            currentEditorPage = matlab.desktop.editor.getActive();
+            if isempty(currentEditorPage)
+                error('MBeautifier:NoActiveEditorPage', ...
+                    ['No active MATLAB Editor page is available. ', ...
+                    'Open a file in the MATLAB Editor and try again.']);
+            end
+        end
+
+        function applyEditorIndentPreference(configuration)
+            indentationStrategy = configuration.specialRule('Indentation_Strategy').Value;
+
+            switch lower(indentationStrategy)
+                case 'allfunctions'
+                    targetPreference = 'AllFunctionIndent';
+                case 'nestedfunctions'
+                    targetPreference = 'MixedFunctionIndent';
+                case 'noindent'
+                    targetPreference = 'ClassicFunctionIndent';
+                otherwise
+                    targetPreference = MBeautify.getEditorIndentPreference();
+            end
+
+            MBeautify.setEditorIndentPreference(targetPreference);
+        end
+
+        function preference = getEditorIndentPreference()
+            preference = char(com.mathworks.services.Prefs.getStringPref('EditorMFunctionIndentType'));
+        end
+
+        function restoreEditorIndentPreference(preference)
+            currentPreference = MBeautify.getEditorIndentPreference();
+            if ~strcmp(currentPreference, preference)
+                MBeautify.setEditorIndentPreference(preference);
+            end
+        end
+
+        function setEditorIndentPreference(preference)
+            com.mathworks.services.Prefs.setStringPref('EditorMFunctionIndentType', preference);
         end
         
         function configuration = getConfiguration()

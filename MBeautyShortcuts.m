@@ -3,6 +3,7 @@ classdef MBeautyShortcuts
     
     properties (Access = private, Constant)
         ShorcutModes = {'editorpage', 'editorselection', 'file'};
+        AutomaticShortcutSupportUpperBound = '25.1';
     end
     
     methods (Static)
@@ -14,16 +15,23 @@ classdef MBeautyShortcuts
             
             mode = MBeautyShortcuts.checkMode(mode);
             
+            shortCutStruct = MBeautyShortcuts.getShortcutCategoryStructure(mode);
+            if ~MBeautyShortcuts.supportsAutomaticShortcutCreation()
+                displayCommand = MBeautyShortcuts.escapeCommandForErrorMessage(shortCutStruct.Callback);
+                error('MBeautifier:ShortcutNotSupported', ...
+                    ['Automatic shortcut creation is not supported on MATLAB R2025a and newer. ', ...
+                    'Create a Favorite manually, optionally pin it to the Quick Access Toolbar, ', ...
+                    'and use this command: ', displayCommand]);
+            end
+
             if ~verLessThan('matlab', '8.0')
                 category = 'MBeautifier';
             else
                 category = 'Toolbar Shortcuts';
             end
             
-            shortCutStruct = MBeautyShortcuts.getShortcutCategoryStructure(mode);
-            
             % Below 2019b shortcuts will be sued
-            if verLessThan('matlab', '9.5')
+            if MBeautyShortcuts.usesLegacyShortcutApi()
                 shortcutUtils = com.mathworks.mlwidgets.shortcuts.ShortcutUtils();
                 
                 try
@@ -110,10 +118,23 @@ classdef MBeautyShortcuts
                 structure = MBeautyShortcuts.getFileShortcut();
             end
             
-            pathToAdd = eval('fileparts(mfilename(''fullpath''))');
+            pathToAdd = fileparts(mfilename('fullpath'));
             addPathCommand = ['addpath(''', pathToAdd, ''');'];
             structure.Callback = [addPathCommand, structure.Callback];
             
+        end
+
+        function tf = supportsAutomaticShortcutCreation()
+            tf = verLessThan('matlab', MBeautyShortcuts.AutomaticShortcutSupportUpperBound);
+        end
+
+        function tf = usesLegacyShortcutApi()
+            tf = verLessThan('matlab', '9.5');
+        end
+
+        function command = escapeCommandForErrorMessage(command)
+            command = strrep(command, '%', '%%');
+            command = strrep(command, '\', '\\');
         end
         
         function mode = checkMode(mode)
