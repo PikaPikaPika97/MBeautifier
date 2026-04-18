@@ -181,6 +181,12 @@ The shortcut commands add the MBeautifier root directory to the MATLAB path too,
 
 MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.Prefs` for desktop integration. These are version-sensitive dependencies and should be treated as the main compatibility boundary for future MATLAB desktop releases.
 
+### Internal Architecture
+
+`MBeautify.m` is the public facade. Headless formatting and file-system validation are routed through `+MBeautifier/FormattingPipeline.m`, while MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`.
+
+The core text transformation still happens in `+MBeautifier/MFormatter.m` and `+MBeautifier/MIndenter.m`. Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`.
+
 ### Tests
 
 The repository includes a headless `matlab.unittest` suite under `tests/`.
@@ -190,6 +196,13 @@ Run the full suite from MATLAB with:
     tests/run_all_tests
 
 Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite focuses on formatter and indenter behavior that does not depend on `matlab.desktop.editor`. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a quarantined known-bug fixture.
+
+Focused coverage currently includes:
+
+ - formatter regression fixtures and modern formatting rules
+ - indentation-specific rules under `tests/TestIndentationRules.m`
+ - batch formatting behavior under `tests/TestBatchFormatting.m`
+ - public API failure paths and desktop integration state handling
  
  Supported Matlab versions
  -------------------------
