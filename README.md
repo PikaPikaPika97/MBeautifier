@@ -171,7 +171,15 @@ Currently four approaches are supported:
   - `addpath('C:\path\to\MBeautifier'); MBeautify.formatEditorSelection();`
   - `addpath('C:\path\to\MBeautifier'); [sourceFile, sourcePath] = uigetfile(); drawnow(); sourceFile = fullfile(sourcePath, sourceFile); if isempty(sourceFile), return; end, [destFile, destPath] = uiputfile(); drawnow(); destFile = fullfile(destPath, destFile); if isempty(destFile), return; end, MBeautify.formatFile(sourceFile, destFile);`
  
- The shortcut commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
+The shortcut commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
+
+### Desktop Integration
+
+`MBeautify.formatCurrentEditorPage`, `MBeautify.formatEditorSelection`, and `MBeautify.formatFile` depend on the MATLAB desktop editor integration.
+
+`MBeautify.formatFileNoEditor` and `MBeautify.formatFiles(..., false)` run through the headless formatting pipeline and are the preferred entry points for automation.
+
+MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.Prefs` for desktop integration. These are version-sensitive dependencies and should be treated as the main compatibility boundary for future MATLAB desktop releases.
 
 ### Tests
 
