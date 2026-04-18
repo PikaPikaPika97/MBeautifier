@@ -46,6 +46,16 @@ classdef FormatterTestUtils
             formatted = MBeautifier.FormattingPipeline.formatText(text, configuration);
         end
 
+        function indented = indentText(text, overrides)
+            if nargin < 2
+                overrides = struct();
+            end
+
+            configuration = FormatterTestUtils.loadConfiguration(overrides);
+            indenter = MBeautifier.MIndenter(configuration);
+            indented = indenter.performIndenting(text);
+        end
+
         function directory = createTempDirectory()
             directory = tempname();
             mkdir(directory);
