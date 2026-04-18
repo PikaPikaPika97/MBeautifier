@@ -828,7 +828,7 @@ classdef MFormatter < handle
         end
 
         function data = applyStatementBreakStrategy(obj, data)
-            if numel(regexp(data, ';')) <= 1
+            if ~obj.hasMultipleStatements(data)
                 return;
             end
 
@@ -856,25 +856,21 @@ classdef MFormatter < handle
                 return;
             end
 
-            hasClosingEnd = numel(regexp(trimmed, '(^|[^a-zA-Z0-9_])end\s*;?\s*$', 'once')) > 0;
-            if ~hasClosingEnd
+            if ~obj.hasClosingCompactEnd(trimmed)
                 return;
             end
 
-            if numel(regexp(trimmed, '^if($|[^a-zA-Z0-9_])', 'once')) || ...
-                    numel(regexp(trimmed, '^for($|[^a-zA-Z0-9_])', 'once')) || ...
-                    numel(regexp(trimmed, '^while($|[^a-zA-Z0-9_])', 'once'))
+            if obj.startsCompactLoopOrConditional(trimmed)
                 tf = true;
                 return;
             end
 
-            if numel(regexp(trimmed, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
-                    numel(regexp(trimmed, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'))
+            if obj.isCompactTryCatch(trimmed)
                 tf = true;
             end
         end
 
-        function data = splitNonTrailingStatements(obj, data)
+        function data = splitNonTrailingStatements(~, data)
             data = regexprep(data, ';(?!\s*$)', ';\n');
         end
 
@@ -926,16 +922,16 @@ classdef MFormatter < handle
             end
         end
 
-        function tf = isArgumentsBlockStart(obj, trimmedCode)
-            tf = numel(regexp(trimmedCode, '^arguments(\s*\(.*\))?\s*$', 'once')) > 0;
+        function tf = isArgumentsBlockStart(~, trimmedCode)
+            tf = ~isempty(regexp(trimmedCode, '^arguments(\s*\(.*\))?\s*$', 'once'));
         end
 
-        function tf = isArgumentsBlockEnd(obj, trimmedCode)
-            tf = numel(regexp(trimmedCode, '^end\s*;?\s*$', 'once')) > 0;
+        function tf = isArgumentsBlockEnd(~, trimmedCode)
+            tf = ~isempty(regexp(trimmedCode, '^end\s*;?\s*$', 'once'));
         end
 
         function tf = isArgumentsDeclarationLine(obj, trimmedCode)
-            tf = numel(regexp(trimmedCode, '^[a-zA-Z]\w*(\.[a-zA-Z]\w*)*', 'once')) > 0 ...
+            tf = ~isempty(regexp(trimmedCode, '^[a-zA-Z]\w*(\.[a-zA-Z]\w*)*', 'once')) ...
                 && ~obj.isArgumentsBlockStart(trimmedCode) ...
                 && ~obj.isArgumentsBlockEnd(trimmedCode);
         end
@@ -1000,18 +996,16 @@ classdef MFormatter < handle
                 return;
             end
 
-            if numel(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])end\s*;?\s*$', 'once')) == 0 || ...
-                    numel(strfind(trimmedCode, ';')) <= 1
+            if ~obj.hasClosingCompactEnd(trimmedCode) || ~obj.hasMultipleStatements(trimmedCode)
                 return;
             end
 
-            if numel(regexp(trimmedCode, '^(if|for|while)($|[^a-zA-Z0-9_])', 'once'))
+            if obj.startsCompactLoopOrConditional(trimmedCode)
                 tf = true;
                 return;
             end
 
-            if numel(regexp(trimmedCode, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
-                    numel(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'))
+            if obj.isCompactTryCatch(trimmedCode)
                 tf = true;
             end
         end
@@ -1028,7 +1022,7 @@ classdef MFormatter < handle
             end
         end
 
-        function [containerBorderIndexes, maxDepth] = calculateContainerDepths(obj, data)
+        function [containerBorderIndexes, maxDepth] = calculateContainerDepths(~, data)
             % Calculates the container boundaries with container depth for a continous code line.
 
             containerBorderIndexes = {};
@@ -1355,9 +1349,8 @@ classdef MFormatter < handle
                 strcmp(element, obj.TokenStruct.ContinueCurlyToken.Token);
         end
 
-        function fullComment = buildContinousLineCommentAsPrecedingLines(obj, contLineArray)
-            fullComment = '';
-            newLine = MBeautifier.Constants.NewLine;
+        function fullComment = buildContinousLineCommentAsPrecedingLines(~, contLineArray)
+            comments = {};
             for iCont = 1:size(contLineArray, 1) - 1
                 cComment = contLineArray{iCont, 2};
                 if isempty(strtrim(cComment))
@@ -1366,12 +1359,31 @@ classdef MFormatter < handle
                 if ~numel(regexp(cComment, '^\s*%'))
                     cComment = ['% ', cComment];
                 end
-                if isempty(fullComment)
-                    fullComment = cComment;
-                else
-                    fullComment = [fullComment, newLine, cComment];
-                end
+                comments{end+1} = cComment; %#ok<AGROW>
             end
+
+            if isempty(comments)
+                fullComment = '';
+            else
+                fullComment = strjoin(comments, MBeautifier.Constants.NewLine);
+            end
+        end
+
+        function tf = hasMultipleStatements(~, data)
+            tf = numel(strfind(data, ';')) > 1;
+        end
+
+        function tf = hasClosingCompactEnd(~, trimmedCode)
+            tf = ~isempty(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])end\s*;?\s*$', 'once'));
+        end
+
+        function tf = startsCompactLoopOrConditional(~, trimmedCode)
+            tf = ~isempty(regexp(trimmedCode, '^(if|for|while)($|[^a-zA-Z0-9_])', 'once'));
+        end
+
+        function tf = isCompactTryCatch(~, trimmedCode)
+            tf = ~isempty(regexp(trimmedCode, '^try($|[^a-zA-Z0-9_])', 'once')) && ...
+                ~isempty(regexp(trimmedCode, '(^|[^a-zA-Z0-9_])catch($|[^a-zA-Z0-9_])', 'once'));
         end
     end
 end
