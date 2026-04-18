@@ -148,12 +148,15 @@ Usage
 
 ### From MATLAB Command Window
 
-Currently four approaches are supported:
+The main public entry points are:
 
  - Perform formatting on the currently active page of MATLAB Editor. Command: `MBeautify.formatCurrentEditorPage()`. By default the file is not saved, but it remains opened modified in the editor. Optionally the formatted file can be saved using the `MBeautify.formatCurrentEditorPage(true)` syntax.
  - Perform formatting on the currently selected text of the active page of MATLAB Editor. Command: `MBeautify.formatEditorSelection()`. An optional saving mechanism as above exists also in this case. Useful in case of large files, but in any case `MBeautify.formatCurrentEditorPage()` is suggested.
+ - Perform formatting on plain text. Command: `MBeautify.formatText(text)`. Use `MBeautify.formatText(text, 'Configuration', cfg)` or `MBeautify.formatText(text, 'ConfigurationFile', xmlFile)` to override the resolved configuration for a single call.
  - Perform formatting on a file. Command: `MBeautify.formatFile(file)`. Can be used with (1)one argument: the input file is formatted and remains open in the MATLAB editor unsaved; (2)two arguments as `MBeautify.formatFile(file, outFile)`: the formatted file is saved to the specified output file if possible. Output can be the same as input.
- - Perform formatting on several files in a directory. Command: `MBeautify.formatFiles(directory, fileFilter)`. The first argument is an absolute path to a directory, the second one is a wildcard expression (used for `dir` command) to filter files in the target directory. The files will be formatted in-place (overwritten). 
+ - Perform headless formatting on a file. Command: `MBeautify.formatFileNoEditor(file)` or `MBeautify.formatFileNoEditor(file, outFile)`.
+ - Perform formatting on several files in a directory. Command: `MBeautify.formatFiles(directory, fileFilter)`. The first argument is an absolute path to a directory, the second one is a wildcard expression (used for `dir` command) to filter files in the target directory. The files will be formatted in-place (overwritten).
+ - Inspect file(s) without rewriting them. Commands: `MBeautify.checkFile(file)`, `MBeautify.diffFile(file)`, `MBeautify.checkFiles(directory, fileFilter, recurse, editor)`, and `MBeautify.diffFiles(...)`. These return structured summaries that can be consumed by automation or CI.
  
 ### Shortcuts
  
@@ -177,7 +180,7 @@ The shortcut commands add the MBeautifier root directory to the MATLAB path too,
 
 `MBeautify.formatCurrentEditorPage`, `MBeautify.formatEditorSelection`, and `MBeautify.formatFile` depend on the MATLAB desktop editor integration.
 
-`MBeautify.formatFileNoEditor` and `MBeautify.formatFiles(..., false)` run through the headless formatting pipeline and are the preferred entry points for automation.
+`MBeautify.formatFileNoEditor`, `MBeautify.formatFiles(..., false)`, `MBeautify.checkFile`, `MBeautify.diffFile`, `MBeautify.checkFiles`, and `MBeautify.diffFiles` run through the headless formatting pipeline and are the preferred entry points for automation.
 
 MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.Prefs` for desktop integration. These are version-sensitive dependencies and should be treated as the main compatibility boundary for future MATLAB desktop releases.
 
@@ -185,7 +188,9 @@ MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.P
 
 `MBeautify.m` is the public facade. Headless formatting, batch orchestration, and file-system validation are routed through `+MBeautifier/FormattingPipeline.m`, while MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`.
 
-The core text transformation still happens in `+MBeautifier/MFormatter.m` and `+MBeautifier/MIndenter.m`. Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`.
+The core text transformation still happens in `+MBeautifier/MFormatter.m` and `+MBeautifier/MIndenter.m`. Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`, but entry points can now also accept an explicit configuration object or XML file path for one-off overrides.
+
+Project-local configuration discovery is supported through a `.mbeautifier.xml` file. For file-based entry points, MBeautifier searches from the target file's directory upward and uses the nearest project configuration when no explicit configuration override is provided.
 
 ### Tests
 
@@ -195,15 +200,20 @@ Run the full suite from MATLAB with:
 
     tests/run_all_tests
 
-Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite covers both the headless formatting pipeline and MATLAB desktop editor smoke flows. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `testfile_bugs.m` kept as a targeted regression fixture for issue `#35`.
+Use `tests/run_all_tests` as the stable entry point so the helper paths under `tests/helpers` are configured correctly before the suite runs. The suite covers both the headless formatting pipeline and MATLAB desktop editor smoke flows. The regression fixtures live in `resources/testdata/`, with `testfile.m` acting as the canonical golden file and `resources/testdata/issues/issue_0035_function_call_arithmetic_spacing.m` tracking issue `#35`.
 
 Focused coverage currently includes:
 
  - formatter regression fixtures and modern formatting rules
- - indentation-specific rules under `tests/TestIndentationRules.m`
- - batch formatting behavior under `tests/TestBatchFormatting.m`
- - public API failure paths and desktop integration state handling
- - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
+  - indentation-specific rules under `tests/TestIndentationRules.m`
+  - batch formatting behavior under `tests/TestBatchFormatting.m`
+ - structured `check` / `diff` inspection APIs and project-local configuration discovery
+  - public API failure paths and desktop integration state handling
+  - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
+
+For opt-in performance checks, run:
+
+    tests/run_performance_baseline
  
 Compatibility note
 ------------------
