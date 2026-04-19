@@ -1,6 +1,6 @@
 # MBeautifier
 
-MBeautifier is a lightweight M-Script based MATLAB source code formatter usable directly in the MATLAB Editor.
+MBeautifier is a lightweight M-Script based MATLAB source code formatter. It can run headlessly for automation and CI, and it can also format the current MATLAB Editor page or selection.
 
 ![Basic working](https://cloud.githubusercontent.com/assets/12681120/20592407/904cb1d6-b22d-11e6-93dd-1637c3738e50.png)
 
@@ -8,13 +8,15 @@ MBeautifier is a lightweight M-Script based MATLAB source code formatter usable 
 Main features
 -------------
  - Padding operators and keywords with white spaces
- - Configurable indentation character and level. Indentation using the Smart Indent functionality of the MATLAB Editor
+ - Configurable indentation character, indentation level, and function indentation strategy
  - Removal/addition of continuous empty lines
  - Inserting missing element separators (commas) in matrix and cell array initializations
- - Insert missing continuous symbol line in matrix and cell array initializations
- - In-lining continuous lines 
- - Formats the current page of the MATLAB Editor or only a selection in the MATLAB Editor or file(s) 
- - While everything above is configurable in a single XML file
+ - Inserting missing continuation symbols in matrix and cell array initializations
+ - In-lining continuous lines
+ - Formatting plain text, one file, batches of files, the current MATLAB Editor page, or the current MATLAB Editor selection
+ - Structured `check` and `diff` APIs for automation without rewriting files
+ - Project-local `.mbeautifier.xml` configuration discovery
+ - XML-driven formatting rules with explicit per-call configuration overrides
 
 Deployment and Configuration
 ----------------------------
@@ -91,7 +93,7 @@ The current list of special rules:
  - **IndentationCharacter**: [white-space|tab]. Specifies which character should be used for auto-indentation: white space or tabulator. Defaults to "white-space".
  - **IndentationCount**: Integer value. Specifies the level of auto-indentation (how many **IndentationCharacter** means one level of indentation). Defaults to "4".
  - **Indentation_TrimBlankLines**: [1|0]. Specifies if blank lines (lines containing only white space characters - as result of auto-indentation) should be trimmed (made empty) by MBeautifier. Defaults to "1" as it can lead to smaller file sizes.
- - **Indentation_Strategy**: ['AllFunctions'|'NestedFunctions'|'NoIndent']. Controls the "Function indenting format" preference of the MATLAB editor used by MBeautifier: changes the indentation level of the functions' body. Possible values: "AllFunctions" - indent the body of each function, "NestedFunctions" - indent the body of nested functions only, "NoIndent" - all of the functions' body will be indented the same amount as the function keyword itself.
+ - **Indentation_Strategy**: ['AllFunctions'|'NestedFunctions'|'NoIndent']. Controls MBeautifier's keyword-stack indentation mode for function bodies. Possible values: "AllFunctions" - indent the body of each function, "NestedFunctions" - indent the body of nested functions only, "NoIndent" - all of the functions' body will be indented the same amount as the function keyword itself.
   
 #### Directives
 
@@ -178,11 +180,29 @@ MBeautifier currently uses `matlab.desktop.editor` for desktop integration. This
 
 ### Internal Architecture
 
-`MBeautify.m` is the public facade. Headless formatting, batch orchestration, and file-system validation are routed through `+MBeautifier/FormattingPipeline.m`, while MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`.
+`MBeautify.m` is the public facade. It parses public arguments and delegates work to focused implementation modules.
 
-The core text transformation still happens in `+MBeautifier/MFormatter.m` and `+MBeautifier/MIndenter.m`. Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`, but entry points can now also accept an explicit configuration object or XML file path for one-off overrides.
+Headless formatting, batch orchestration, check/diff inspection, file-system validation, and final file writes are routed through `+MBeautifier/FormattingPipeline.m`. MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m` and uses `+MBeautifier/DesktopAdapter.m` as the narrow wrapper around `matlab.desktop.editor`.
+
+The core text transformation happens in `+MBeautifier/MFormatter.m`, then indentation is applied through `+MBeautifier/MIndenter.m` and `+MBeautifier/BlockIndentationEngine.m`. `MFormatter` is still the largest stateful component, but several focused helpers now own smaller boundaries:
+
+ - `+MBeautifier/SourceLine.m`: separates code, comments, section separators, strings, transpose quotes, and block comments for one line.
+ - `+MBeautifier/LineFormattingStages.m`: owns isolated single-line transformations such as inline comment spacing and `arguments` declaration spacing.
+ - `+MBeautifier/ContainerScanner.m`: calculates bracket container depth for matrices, cell arrays, indexing, and function-call-like containers.
+ - `+MBeautifier/ContinuationFormatting.m`: owns helper behavior for continued source lines.
+
+Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`, but entry points can also accept an explicit configuration object or XML file path for one-off overrides.
 
 Project-local configuration discovery is supported through a `.mbeautifier.xml` file. For file-based entry points, MBeautifier searches from the target file's directory upward and uses the nearest project configuration when no explicit configuration override is provided.
+
+The main data flow is:
+
+    MBeautify
+      -> ConfigurationResolver
+      -> FormattingPipeline
+      -> MFormatter
+      -> MIndenter / BlockIndentationEngine
+      -> file write, editor update, or diff/check summary
 
 ### Tests
 
@@ -197,6 +217,9 @@ Use `tests/run_all_tests` as the stable entry point so the helper paths under `t
 Focused coverage currently includes:
 
  - formatter regression fixtures and modern formatting rules
+ - lexical source-line boundaries, string/comment splitting, and block comment tracking
+ - line-formatting stages for inline comments and `arguments` declarations
+ - container and continuation-line helpers
  - indentation-specific rules under `tests/TestIndentationRules.m`
  - batch formatting behavior under `tests/TestBatchFormatting.m`
  - structured `check` / `diff` inspection APIs and project-local configuration discovery
@@ -212,7 +235,7 @@ Compatibility note
 
 MBeautifier is currently validated against the recent MATLAB releases used for active development. Older MATLAB releases may still work, especially for the headless formatting pipeline, but they are no longer continuously tested in this repository.
 
-Desktop integration has a narrower compatibility boundary than the headless pipeline because it depends on `matlab.desktop.editor` and `com.mathworks.services.Prefs`.
+Desktop integration has a narrower compatibility boundary than the headless pipeline because it depends on `matlab.desktop.editor`.
 
 Planned future versions
 -----------------------
