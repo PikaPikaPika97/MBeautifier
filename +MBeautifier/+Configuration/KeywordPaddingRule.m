@@ -16,11 +16,7 @@ classdef KeywordPaddingRule
         end
 
         function value = get.ReplaceTo(obj)
-            wsPadding = '';
-            for i = 1:obj.RightPadding
-                wsPadding = [' ', wsPadding];
-            end
-
+            wsPadding = repmat(' ', 1, obj.RightPadding);
             value = [obj.Keyword, wsPadding];
         end
     end

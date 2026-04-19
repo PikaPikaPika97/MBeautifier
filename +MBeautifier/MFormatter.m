@@ -1193,7 +1193,7 @@ classdef MFormatter < handle
                                     end
                                 end
                                 if isempty(prevChar) || prevChar == ','
-                                    currElem = [currElem, nextElem];
+                                    currElem = horzcat(currElem, nextElem); %#ok<AGROW>
                                     currElemStripped = regexprep(currElem, ['[', openingBracket, closingBracket, ']'], '');
                                     elementsCell{elemInd+1} = '';
                                     if numel(elementsCell) > elemInd + 1
@@ -1269,7 +1269,7 @@ classdef MFormatter < handle
                 arrayMap(tokenOfCUrElem) = strNew;
                 id = id + 1;
                 datacell{2} = tokenOfCUrElem;
-                data = [datacell{:}];
+                data = horzcat(datacell{:});
 
                 containerBorderIndexes = obj.calculateContainerDepths(data);
             end

@@ -5,7 +5,7 @@ classdef Constants
 
         ContainerOpeningBrackets = {'[', '{', '('};
         ContainerClosingBrackets = {']', '}', ')'};
-        NewLine = sprintf('\n');
+        NewLine = newline;
     end
 
     methods (Access = private)

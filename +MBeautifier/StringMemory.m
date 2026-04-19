@@ -23,12 +23,14 @@ classdef StringMemory < handle
             % " text "" ' text2"
 
             indices = regexp(actCode, '''|"');
-            mementos = {};
+            mementos = cell(1, max(1, floor(numel(indices) / 2)));
+            mementoCount = 0;
             strArray = cell(1, numel(indices)+1);
 
             if numel(indices) > 1
                 stringStartedWith = '';
-                currentString = '';
+                currentStringParts = cell(1, numel(indices));
+                currentStringPartCount = 0;
                 isInString = false;
                 lastWasEscape = false;
                 for iMatch = 1:numel(indices)
@@ -45,22 +47,26 @@ classdef StringMemory < handle
                     end
 
                     if lastWasEscape
-                        currentString = [currentString, actCode(indices(iMatch))];
+                        currentStringPartCount = currentStringPartCount + 1;
+                        currentStringParts{currentStringPartCount} = actCode(indices(iMatch));
                         lastWasEscape = false;
                         continue
                     end
 
-                    % String started with " and the current character is ' (or vice-versa) -> it is still aprt of the
+                    % String started with " and the current character is ' (or vice-versa) -> it is still part of the
                     % string
                     if ~strcmp(stringStartedWith, actCode(indices(iMatch)))
-                        currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch))];
+                        currentStringPartCount = currentStringPartCount + 1;
+                        currentStringParts{currentStringPartCount} = actCode(indices(iMatch-1)+1:indices(iMatch));
                     else
                         % String started with ' and the same character comes (or " case)
 
                         isEndOfString = numel(indices) == iMatch || indices(iMatch) + 1 ~= indices(iMatch+1);
 
                         if isEndOfString
-                            currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch)-1)];
+                            currentStringPartCount = currentStringPartCount + 1;
+                            currentStringParts{currentStringPartCount} = actCode(indices(iMatch-1)+1:indices(iMatch)-1);
+                            currentString = [currentStringParts{1:currentStringPartCount}];
 
 
                             if strcmp(stringStartedWith, '''')
@@ -70,13 +76,15 @@ classdef StringMemory < handle
                             else
                                 error('MBeautifier:InternalError', 'Unknown problem happened while processing strings.')
                             end
-                            mementos{end+1} = memento;
+                            mementoCount = mementoCount + 1;
+                            mementos{mementoCount} = memento;
 
                             strArray{iMatch} = MBeautifier.Constants.StringToken;
                             isInString = false;
-                            currentString = '';
+                            currentStringPartCount = 0;
                         else
-                            currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch))];
+                            currentStringPartCount = currentStringPartCount + 1;
+                            currentStringParts{currentStringPartCount} = actCode(indices(iMatch-1)+1:indices(iMatch));
                             lastWasEscape = true;
                         end
                     end
@@ -92,6 +100,7 @@ classdef StringMemory < handle
                 actCodeTemp = actCode;
             end
 
+            mementos = mementos(1:mementoCount);
             stringMemory = MBeautifier.StringMemory(actCode, actCodeTemp, mementos);
         end
     end
