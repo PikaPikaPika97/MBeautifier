@@ -490,121 +490,15 @@ classdef MFormatter < handle
 
         function [actCode, actComment, splittingPos, isSectionSeparator] = findComment(obj, line)
             % Splits a continous line into code and comment parts.
+            analysis = MBeautifier.SourceLine.analyze( ...
+                line, obj.IsInBlockComment, obj.BlockCommentDepth);
 
-            %% Set the variables
-            retComm = -1;
-            exclamationPos = -1;
-            actCode = line;
-            actComment = '';
-            splittingPos = -1;
-            isSectionSeparator = false;
-
-            trimmedLine = strtrim(line);
-
-            %% Handle some special cases
-            if isempty(trimmedLine)
-                return;
-            elseif strcmp(trimmedLine, '%{')
-                retComm = 1;
-                obj.IsInBlockComment = true;
-                obj.BlockCommentDepth = obj.BlockCommentDepth + 1;
-            elseif strcmp(trimmedLine, '%}') && obj.IsInBlockComment
-                retComm = 1;
-
-                obj.BlockCommentDepth = obj.BlockCommentDepth - 1;
-                obj.IsInBlockComment = obj.BlockCommentDepth > 0;
-            else
-                if obj.IsInBlockComment
-                    retComm = 1;
-                    obj.IsInBlockComment = true;
-                end
-            end
-
-            if isequal(trimmedLine(1), '%') || (numel(trimmedLine) > 7 && isequal(trimmedLine(1:7), 'import '))
-                retComm = 1;
-            elseif isequal(trimmedLine(1), '!')
-                exclamationPos = 1;
-            end
-
-            splittingPos = max(retComm, exclamationPos);
-
-            if isequal(splittingPos, 1)
-                actCode = '';
-                actComment = line;
-
-                if ~obj.IsInBlockComment && ...
-                        numel(regexp(trimmedLine, '^%%(\s+|$)'))
-                    isSectionSeparator = true;
-                end
-                return
-            end
-
-            %% Searh for comment signs(%) and exclamation marks(!)
-
-            % Replace transponation (and non-conjugate transponations) to avoid not relevant matches
-            % This is just to help identify actual strings.
-            possibleCode = obj.replaceTransponations(line, '#');
-
-            exclamationInd = strfind(possibleCode, '!');
-            commentSignIndexes = strfind(possibleCode, '%');
-            contIndexes = strfind(possibleCode, '...');
-
-            if ~iscell(exclamationInd)
-                exclamationInd = num2cell(exclamationInd);
-            end
-            if ~iscell(commentSignIndexes)
-                commentSignIndexes = num2cell(commentSignIndexes);
-            end
-            if ~iscell(contIndexes)
-                contIndexes = num2cell(contIndexes);
-            end
-
-            % Make the union of indexes of '%' and '!' symbols then sort them
-            indexUnion = [commentSignIndexes, exclamationInd, contIndexes];
-            indexUnion = sortrows(indexUnion(:))';
-
-            % Iterate through the union
-            commentSignCount = numel(indexUnion);
-            if ~commentSignCount
-                retComm = -1;
-                exclamationPos = -1;
-            else
-                % Find the start and end of all single- or double-quoted strings
-                % This treats escaped quotes as two separate quotes, which is fine
-                [quoteStartInds, quoteEndInds] = regexp(possibleCode, '("|'').*?\1');
-                quoteInds = sort([quoteStartInds, quoteEndInds]);
-
-                for iCommSign = 1:commentSignCount
-                    currentIndex = indexUnion{iCommSign};
-
-                    % The line is currently "not in string"
-                    if isequal(mod(sum(quoteInds < currentIndex), 2), 0)
-                        if ismember(currentIndex, [commentSignIndexes{:}])
-                            retComm = currentIndex;
-                        elseif ismember(currentIndex, [exclamationInd{:}])
-                            exclamationPos = currentIndex;
-                        else
-                            % Branch of '...'
-                            retComm = currentIndex + 3;
-                        end
-
-                        break;
-                    end
-                end
-            end
-
-            splittingPos = max(retComm, exclamationPos);
-
-            if isequal(splittingPos, 1)
-                actCode = '';
-                actComment = line;
-            elseif splittingPos == -1
-                actCode = line;
-                actComment = '';
-            else
-                actCode = line(1:max(splittingPos-1, 1));
-                actComment = strtrim(line(splittingPos:end));
-            end
+            actCode = analysis.Code;
+            actComment = analysis.Comment;
+            splittingPos = analysis.SplittingPosition;
+            isSectionSeparator = analysis.IsSectionSeparator;
+            obj.IsInBlockComment = analysis.IsInBlockComment;
+            obj.BlockCommentDepth = analysis.BlockCommentDepth;
         end
 
         function data = performFormattingSingleLine(obj, data, doIndexing, contType, isContainerElement)

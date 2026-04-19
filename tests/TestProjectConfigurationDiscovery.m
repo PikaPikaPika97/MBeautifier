@@ -86,6 +86,7 @@ classdef TestProjectConfigurationDiscovery < matlab.unittest.TestCase
         function closeIfValid(document)
             if ~isempty(document) && isvalid(document)
                 document.close();
+                drawnow();
             end
         end
     end
