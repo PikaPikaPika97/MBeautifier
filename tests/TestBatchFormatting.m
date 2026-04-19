@@ -30,6 +30,20 @@ classdef TestBatchFormatting < matlab.unittest.TestCase
                 FormatterTestUtils.normalizeText(originalNested));
         end
 
+        function testFormatFilesDefaultsToHeadlessFormatting(testCase)
+            directory = TestBatchFormatting.createBatchDirectory(testCase);
+            rootFile = TestBatchFormatting.writeTextFile(directory, 'rootDefault.m', ...
+                sprintf('function y=foo(x)\ny=x+1;\nend\n'));
+            expectedRoot = FormatterTestUtils.formatText(FormatterTestUtils.readText(rootFile));
+
+            MBeautify.formatFiles(directory);
+
+            testCase.verifyEqual( ...
+                FormatterTestUtils.normalizeText(FormatterTestUtils.readText(rootFile)), ...
+                FormatterTestUtils.normalizeText(expectedRoot));
+            testCase.verifyFalse(matlab.desktop.editor.isOpen(rootFile));
+        end
+
         function testFormatFilesRecursesWithoutEditor(testCase)
             directory = TestBatchFormatting.createBatchDirectory(testCase);
             rootFile = TestBatchFormatting.writeTextFile(directory, 'rootFile.m', ...

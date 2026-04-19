@@ -42,6 +42,15 @@ classdef TestPublicApiFailures < matlab.unittest.TestCase
                 'MBeautifier:FileDoesNotExist');
         end
 
+        function testInvalidIndentationCharacterErrors(testCase)
+            configuration = FormatterTestUtils.loadConfiguration( ...
+                struct('IndentationCharacter', 'invalid'));
+
+            testCase.verifyError( ...
+                @() MBeautifier.FormattingPipeline.formatText(sprintf('x=1;\n'), configuration), ...
+                'MBeautifier:Configuration:InvalidIndentationCharacter');
+        end
+
         function testFormatCurrentEditorPageErrorsWithoutActiveEditor(testCase)
             testCase.assumeTrue(isempty(matlab.desktop.editor.getActive()), ...
                 'This test requires the MATLAB Editor to have no active page.');

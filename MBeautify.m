@@ -1,6 +1,7 @@
 classdef MBeautify
-    % Provides static methods to perform code formatting targeting file(s), the currently active editor page or the
-    % current selection in editor.
+    % Provides static methods to perform code formatting targeting text,
+    % file(s), the currently active editor page or the current selection in
+    % editor.
     %   The rules of the formatting are defined in the "MBeautyConfigurationRules.xml" in the resources directory. This
     %   file can be modified to affect the formatting.
     %
@@ -8,16 +9,14 @@ classdef MBeautify
     %
     %   MBeautify.formatCurrentEditorPage(); % Formats the current page in editor without saving
     %   MBeautify.formatCurrentEditorPage(); % Formats the current page in editor with saving
-    %   MBeautify.formatFile('D:\testFile.m', 'D:\testFileNew.m'); % Formats the first file into the second file
-    %   MBeautify.formatFile('D:\testFile.m', 'D:\testFile.m'); % Formats the first file in-place
+    %   MBeautify.formatFile('D:\testFile.m', 'D:\testFileNew.m'); % Formats the first file into the second file without opening it in the Editor
+    %   MBeautify.formatFile('D:\testFile.m', 'D:\testFile.m'); % Formats the first file in-place without opening it in the Editor
     %   MBeautify.formatFiles('D:\mydir', '*.m'); % Formats all files in the specified diretory in-place
     %
     %   Shortcuts:
     %
-    %   Shortcuts can be automatically created for "formatCurrentEditorPage", "formatEditorSelection" and
-    %   "formatFile" methods by executing MBeautify.createShortcut() in order with the parameter 'editorpage',
-    %   'editorselection' or 'file'.
-    %   The created shortcuts add MBeauty to the Matlab path also (therefore no preparation of the path is needed additionally).
+    %   Shortcuts can be automatically created for "formatCurrentEditorPage" and "formatEditorSelection" by executing
+    %   MBeautify.createShortcut() with the parameter 'editorpage' or 'editorselection'.
     
     %% Public API
     
@@ -48,19 +47,18 @@ classdef MBeautify
         end
         
         function formatFile(file, varargin)
-            % Format file in editor
+            % Format file outside of editor.
             % function formatFile(file, outFile)
             %
-            % Formats the file specified in the first argument. The file is opened in the Matlab Editor. If the second
-            % argument is also specified, the formatted source is saved to this file and it is closed if it wasn't already
-            % open in the Editor. Otherwise the formatted input file remains opened in the Matlab Editor.
-            % The input and the output file can be the same.
+            % Formats the file specified in the first argument. If the second
+            % argument is also specified, the formatted source is saved to this
+            % file. The input and the output file can be the same.
             [outFile, optionArgs] = MBeautify.extractOptionalOutputPath(varargin);
 
             if isempty(outFile)
-                MBeautifier.EditorApp.formatFile(file, optionArgs{:});
+                MBeautifier.FormattingPipeline.formatFileNoEditor(file, optionArgs{:});
             else
-                MBeautifier.EditorApp.formatFile(file, outFile, optionArgs{:});
+                MBeautifier.FormattingPipeline.formatFileNoEditor(file, outFile, optionArgs{:});
             end
         end
         
@@ -74,8 +72,8 @@ classdef MBeautify
             % command. Defaults to '*.m'
             %
             % Recurse defaults to false. Set true to recurse subfolders of directory.
-            % Editor defaults to true.  Set to false to format files outside the editor.
-            [fileFilter, recurse, editor, optionArgs] = MBeautify.parseBatchArguments(varargin, true);
+            % Editor defaults to false. Set to true to format files through the editor integration.
+            [fileFilter, recurse, editor, optionArgs] = MBeautify.parseBatchArguments(varargin, false);
 
             MBeautifier.FormattingPipeline.formatFiles(directory, fileFilter, recurse, editor, optionArgs{:});
         end

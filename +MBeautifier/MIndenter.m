@@ -57,17 +57,8 @@ classdef MIndenter < handle
         function indent = getIndentationString(obj)
             indentationCharacter = obj.Configuration.specialRule('IndentationCharacter').Value;
             indentationCount = obj.Configuration.specialRule('IndentationCount').ValueAsDouble;
-
-            if strcmpi(indentationCharacter, 'white-space')
-                indent = repmat(' ', 1, indentationCount);
-            elseif strcmpi(indentationCharacter, 'tab')
-                indent = '\t';
-            else
-                warning('MBeautifier:IllegalSetting:IndentationCharacter', ...
-                    ['MBeautifier: The indentation character must be set to "white-space" or "tab". ', ...
-                    'MBeautifier using MATLAB defaults.']);
-                indent = '    ';
-            end
+            indent = MBeautifier.IndentationConfiguration.indentationString( ...
+                indentationCharacter, indentationCount);
         end
 
         function [trimmedLine, line, words, isOldStyleFunctionCall] = analyzeLine(obj, rawLine)

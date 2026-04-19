@@ -177,13 +177,6 @@ classdef EditorApp
             end
 
             neededIndentation = MBeautifier.EditorApp.buildIndentationString(indentationCharacter, indentationCount);
-            if isempty(neededIndentation)
-                warning('MBeautifier:IllegalSetting:IndentationCharacter', ...
-                    ['MBeautifier: The indentation character must be set to "white-space" or "tab". ', ...
-                    'MBeautifier using MATLAB defaults.']);
-                neededIndentation = '    ';
-                indentationCharacter = 'white-space';
-            end
 
             textArray = regexp(MBeautifier.DesktopAdapter.getText(editorPage), MBeautifier.Constants.NewLine, 'split');
             skipIndentation = strcmpi(indentationCharacter, 'white-space') && indentationCount == 4;
@@ -264,12 +257,8 @@ classdef EditorApp
         end
 
         function indent = buildIndentationString(indentationCharacter, indentationCount)
-            indent = '';
-            if strcmpi(indentationCharacter, 'white-space')
-                indent = repmat(' ', 1, indentationCount);
-            elseif strcmpi(indentationCharacter, 'tab')
-                indent = '\t';
-            end
+            indent = MBeautifier.IndentationConfiguration.indentationString( ...
+                indentationCharacter, indentationCount);
         end
 
         function cText = replaceLeadingIndentation(cText, neededIndentation)

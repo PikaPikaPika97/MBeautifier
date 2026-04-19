@@ -57,7 +57,7 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
-        function testFormatFileWritesFormattedOutputAndClosesTemporaryDocument(testCase)
+        function testFormatFileUsesHeadlessPipelineWithoutOpeningDocuments(testCase)
             inputText = sprintf('function y=foo(x)\ny=x+1;\nend\n');
             inputPath = FormatterTestUtils.writeTempTextFile('testFormatFileInput.m', inputText);
             outputPath = fullfile(fileparts(inputPath), 'testFormatFileOutput.m');

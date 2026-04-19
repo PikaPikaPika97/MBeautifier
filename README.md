@@ -153,9 +153,9 @@ The main public entry points are:
  - Perform formatting on the currently active page of MATLAB Editor. Command: `MBeautify.formatCurrentEditorPage()`. By default the file is not saved, but it remains opened modified in the editor. Optionally the formatted file can be saved using the `MBeautify.formatCurrentEditorPage(true)` syntax.
  - Perform formatting on the currently selected text of the active page of MATLAB Editor. Command: `MBeautify.formatEditorSelection()`. An optional saving mechanism as above exists also in this case. Useful in case of large files, but in any case `MBeautify.formatCurrentEditorPage()` is suggested.
  - Perform formatting on plain text. Command: `MBeautify.formatText(text)`. Use `MBeautify.formatText(text, 'Configuration', cfg)` or `MBeautify.formatText(text, 'ConfigurationFile', xmlFile)` to override the resolved configuration for a single call.
- - Perform formatting on a file. Command: `MBeautify.formatFile(file)`. Can be used with (1)one argument: the input file is formatted and remains open in the MATLAB editor unsaved; (2)two arguments as `MBeautify.formatFile(file, outFile)`: the formatted file is saved to the specified output file if possible. Output can be the same as input.
- - Perform headless formatting on a file. Command: `MBeautify.formatFileNoEditor(file)` or `MBeautify.formatFileNoEditor(file, outFile)`.
- - Perform formatting on several files in a directory. Command: `MBeautify.formatFiles(directory, fileFilter)`. The first argument is an absolute path to a directory, the second one is a wildcard expression (used for `dir` command) to filter files in the target directory. The files will be formatted in-place (overwritten).
+ - Perform headless formatting on a file. Command: `MBeautify.formatFile(file)`. Can be used with one argument for in-place formatting or two arguments as `MBeautify.formatFile(file, outFile)`. Output can be the same as input.
+ - Use the legacy alias `MBeautify.formatFileNoEditor(file)` or `MBeautify.formatFileNoEditor(file, outFile)` only for existing automation that has not migrated yet.
+ - Perform headless formatting on several files in a directory. Command: `MBeautify.formatFiles(directory, fileFilter)`. The first argument is an absolute path to a directory, the second one is a wildcard expression (used for `dir` command) to filter files in the target directory. The files will be formatted in-place (overwritten).
  - Inspect file(s) without rewriting them. Commands: `MBeautify.checkFile(file)`, `MBeautify.diffFile(file)`, `MBeautify.checkFiles(directory, fileFilter, recurse, editor)`, and `MBeautify.diffFiles(...)`. These return structured summaries that can be consumed by automation or CI.
  
 ### Shortcuts
@@ -178,9 +178,9 @@ The shortcut commands add the MBeautifier root directory to the MATLAB path too,
 
 ### Desktop Integration
 
-`MBeautify.formatCurrentEditorPage`, `MBeautify.formatEditorSelection`, and `MBeautify.formatFile` depend on the MATLAB desktop editor integration.
+`MBeautify.formatCurrentEditorPage` and `MBeautify.formatEditorSelection` depend on the MATLAB desktop editor integration.
 
-`MBeautify.formatFileNoEditor`, `MBeautify.formatFiles(..., false)`, `MBeautify.checkFile`, `MBeautify.diffFile`, `MBeautify.checkFiles`, and `MBeautify.diffFiles` run through the headless formatting pipeline and are the preferred entry points for automation.
+`MBeautify.formatText`, `MBeautify.formatFile`, `MBeautify.formatFileNoEditor`, `MBeautify.formatFiles`, `MBeautify.checkFile`, `MBeautify.diffFile`, `MBeautify.checkFiles`, and `MBeautify.diffFiles` run through the headless formatting pipeline and are the preferred entry points for automation.
 
 MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.Prefs` for desktop integration. These are version-sensitive dependencies and should be treated as the main compatibility boundary for future MATLAB desktop releases.
 

@@ -14,7 +14,7 @@ classdef TestConfigurationInjection < matlab.unittest.TestCase
                 FormatterTestUtils.normalizeText(input));
         end
 
-        function testFormatFileNoEditorUsesExplicitConfigurationFile(testCase)
+        function testFormatFileUsesExplicitConfigurationFile(testCase)
             directory = FormatterTestUtils.createTempDirectory();
             testCase.addTeardown(@() rmdir(directory, 's'));
 
@@ -25,7 +25,7 @@ classdef TestConfigurationInjection < matlab.unittest.TestCase
             input = sprintf('x = 1   %% comment\n');
 
             FormatterTestUtils.writeTextFileForTest(inputPath, input);
-            MBeautify.formatFileNoEditor(inputPath, outputPath, 'ConfigurationFile', configurationPath);
+            MBeautify.formatFile(inputPath, outputPath, 'ConfigurationFile', configurationPath);
 
             testCase.verifyEqual( ...
                 FormatterTestUtils.normalizeText(FormatterTestUtils.readText(outputPath)), ...
