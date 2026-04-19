@@ -15,8 +15,8 @@ classdef MBeautify
     %
     %   Shortcuts:
     %
-    %   Shortcuts can be automatically created for "formatCurrentEditorPage" and "formatEditorSelection" by executing
-    %   MBeautify.createShortcut() with the parameter 'editorpage' or 'editorselection'.
+    %   Automatic shortcut creation is no longer supported. Use MBeautify.createShortcut() to display the manual
+    %   Favorite command for 'editorpage', 'editorselection' or 'file'.
     
     %% Public API
     
@@ -134,14 +134,8 @@ classdef MBeautify
         end
         
         function createShortcut(mode)
-            % Adds MBeauty to path and creates shortcut in Matlab editor
+            % Raise an explicit error with the manual Favorite command.
             % function createShortcut(mode)
-            %
-            % Creates a shortcut with the selected mode: 'editorpage', 'editorselection', 'file'. The shortcut adds
-            % MBeauty to the Matlab path and executes the following command:
-            %   'editorpage' - MBeauty.formatCurrentEditorPage
-            %   'editorselection' - MBeauty.formatEditorSelection
-            %   'file' - MBeauty.formatFile
             
             MBeautyShortcuts.createShortcut(mode);
         end

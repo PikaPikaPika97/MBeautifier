@@ -165,9 +165,6 @@ classdef EditorApp
         end
 
         function indentPage(editorPage, configuration)
-            MBeautifier.EditorApp.runWithTemporaryEditorIndentPreference(configuration, ...
-                @() MBeautifier.DesktopAdapter.smartIndentContents(editorPage));
-
             indentationCharacter = configuration.specialRule('IndentationCharacter').Value;
             indentationCount = configuration.specialRule('IndentationCount').ValueAsDouble;
             makeBlankLinesEmpty = configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
@@ -200,14 +197,6 @@ classdef EditorApp
             MBeautifier.DesktopAdapter.setText(editorPage, strjoin(textArray, '\n'));
         end
 
-        function runWithTemporaryEditorIndentPreference(configuration, callback)
-            originalPreference = MBeautifier.EditorApp.getEditorIndentPreference();
-            restorePreference = onCleanup(@() MBeautifier.EditorApp.restoreEditorIndentPreference(originalPreference));
-
-            MBeautifier.EditorApp.applyEditorIndentPreference(configuration);
-            callback();
-        end
-
         function currentEditorPage = requireActiveEditorPage()
             currentEditorPage = MBeautifier.DesktopAdapter.getActiveDocument();
             if isempty(currentEditorPage)
@@ -215,35 +204,6 @@ classdef EditorApp
                     ['No active MATLAB Editor page is available. ', ...
                     'Open a file in the MATLAB Editor and try again.']);
             end
-        end
-
-        function applyEditorIndentPreference(configuration)
-            indentationStrategy = configuration.specialRule('Indentation_Strategy').Value;
-
-            switch lower(indentationStrategy)
-                case 'allfunctions'
-                    targetPreference = 'AllFunctionIndent';
-                case 'nestedfunctions'
-                    targetPreference = 'MixedFunctionIndent';
-                case 'noindent'
-                    targetPreference = 'ClassicFunctionIndent';
-                otherwise
-                    targetPreference = MBeautifier.EditorApp.getEditorIndentPreference();
-            end
-
-            MBeautifier.EditorApp.setEditorIndentPreference(targetPreference);
-        end
-
-        function preference = getEditorIndentPreference()
-            preference = MBeautifier.EditorPreferenceAdapter.getIndentPreference();
-        end
-
-        function restoreEditorIndentPreference(preference)
-            MBeautifier.EditorPreferenceAdapter.restoreIndentPreference(preference);
-        end
-
-        function setEditorIndentPreference(preference)
-            MBeautifier.EditorPreferenceAdapter.setIndentPreference(preference);
         end
     end
 

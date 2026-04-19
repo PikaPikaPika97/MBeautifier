@@ -160,21 +160,13 @@ The main public entry points are:
  
 ### Shortcuts
  
- Automatic shortcut creation is available for older MATLAB desktop releases, but MATLAB R2025a and newer no longer support this workflow reliably through the internal APIs used by MBeautifier.
- 
- On releases older than MATLAB R2025a, the following commands can still be used to create shortcuts:
- 
-  - `MBeautify.createShortcut('editorpage')`: Creates a shortcut for `MBeautify.formatCurrentEditorPage()`  
-  - `MBeautify.createShortcut('editorselection')`: Creates a shortcut for `MBeautify.formatEditorSelection()`
-  - `MBeautify.createShortcut('file')`: Creates a shortcut for `MBeautify.formatFile(sourceFile, destFile)`
-  
- On MATLAB R2025a and newer, create a Favorite manually and, if desired, pin it to the Quick Access Toolbar. Use one of these commands as the Favorite code:
+ Automatic shortcut creation is no longer supported. Create a Favorite manually and, if desired, pin it to the Quick Access Toolbar. Use one of these commands as the Favorite code:
 
   - `addpath('C:\path\to\MBeautifier'); MBeautify.formatCurrentEditorPage();`
   - `addpath('C:\path\to\MBeautifier'); MBeautify.formatEditorSelection();`
   - `addpath('C:\path\to\MBeautifier'); [sourceFile, sourcePath] = uigetfile(); drawnow(); if isequal(sourceFile, 0) || isequal(sourcePath, 0), return; end; sourceFile = fullfile(sourcePath, sourceFile); [destFile, destPath] = uiputfile(); drawnow(); if isequal(destFile, 0) || isequal(destPath, 0), return; end; destFile = fullfile(destPath, destFile); MBeautify.formatFile(sourceFile, destFile);`
  
-The shortcut commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
+The Favorite commands add the MBeautifier root directory to the MATLAB path too, therefore no MATLAB path preparation is needed to use MBeautifier next time when a new MATLAB instance is opened.
 
 ### Desktop Integration
 
@@ -182,7 +174,7 @@ The shortcut commands add the MBeautifier root directory to the MATLAB path too,
 
 `MBeautify.formatText`, `MBeautify.formatFile`, `MBeautify.formatFileNoEditor`, `MBeautify.formatFiles`, `MBeautify.checkFile`, `MBeautify.diffFile`, `MBeautify.checkFiles`, and `MBeautify.diffFiles` run through the headless formatting pipeline and are the preferred entry points for automation.
 
-MBeautifier currently uses `matlab.desktop.editor` and `com.mathworks.services.Prefs` for desktop integration. These are version-sensitive dependencies and should be treated as the main compatibility boundary for future MATLAB desktop releases.
+MBeautifier currently uses `matlab.desktop.editor` for desktop integration. This is a version-sensitive dependency and should be treated as the main compatibility boundary for future MATLAB desktop releases.
 
 ### Internal Architecture
 

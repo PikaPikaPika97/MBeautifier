@@ -3,18 +3,9 @@ classdef TestShortcutCompatibility < matlab.unittest.TestCase
 
     methods (Test)
         function testCreateShortcutRaisesHelpfulErrorOnUnsupportedReleases(testCase)
-            if exist('isMATLABReleaseOlderThan', 'file') == 2
-                isOlderThanR2025a = isMATLABReleaseOlderThan('R2025a');
-            else
-                isOlderThanR2025a = verLessThan('matlab', '25.1');
-            end
-
-            testCase.assumeFalse(isOlderThanR2025a, ...
-                'This test requires MATLAB R2025a or newer.');
-
             try
                 MBeautify.createShortcut('editorpage');
-                testCase.assertFail('Expected MBeautify.createShortcut to error on MATLAB R2025a+.');
+                testCase.assertFail('Expected MBeautify.createShortcut to error.');
             catch ME
                 testCase.verifyEqual(ME.identifier, 'MBeautifier:ShortcutNotSupported');
                 testCase.verifySubstring(ME.message, 'Create a Favorite manually');
@@ -24,18 +15,9 @@ classdef TestShortcutCompatibility < matlab.unittest.TestCase
         end
 
         function testFileShortcutErrorMessageChecksForCancelBeforeFullfile(testCase)
-            if exist('isMATLABReleaseOlderThan', 'file') == 2
-                isOlderThanR2025a = isMATLABReleaseOlderThan('R2025a');
-            else
-                isOlderThanR2025a = verLessThan('matlab', '25.1');
-            end
-
-            testCase.assumeFalse(isOlderThanR2025a, ...
-                'This test requires MATLAB R2025a or newer.');
-
             try
                 MBeautify.createShortcut('file');
-                testCase.assertFail('Expected MBeautify.createShortcut to error on MATLAB R2025a+.');
+                testCase.assertFail('Expected MBeautify.createShortcut to error.');
             catch ME
                 testCase.verifyEqual(ME.identifier, 'MBeautifier:ShortcutNotSupported');
                 testCase.verifySubstring(ME.message, 'if isequal(sourceFile, 0) || isequal(sourcePath, 0), return; end;');

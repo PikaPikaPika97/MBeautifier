@@ -17,21 +17,6 @@ classdef TestDesktopAdapter < matlab.unittest.TestCase
             testCase.verifyEqual(MBeautifier.DesktopAdapter.getText(document), sprintf('x = 2;\n'));
         end
 
-        function testEditorPreferenceAdapterRestoresPreviousPreference(testCase)
-            originalPreference = MBeautifier.EditorPreferenceAdapter.getIndentPreference();
-            if strcmp(originalPreference, 'ClassicFunctionIndent')
-                testPreference = 'MixedFunctionIndent';
-            else
-                testPreference = 'ClassicFunctionIndent';
-            end
-
-            cleanup = onCleanup(@() MBeautifier.EditorPreferenceAdapter.setIndentPreference(originalPreference)); %#ok<NASGU>
-            MBeautifier.EditorPreferenceAdapter.setIndentPreference(testPreference);
-            testCase.verifyEqual(MBeautifier.EditorPreferenceAdapter.getIndentPreference(), testPreference);
-
-            MBeautifier.EditorPreferenceAdapter.restoreIndentPreference(originalPreference);
-            testCase.verifyEqual(MBeautifier.EditorPreferenceAdapter.getIndentPreference(), originalPreference);
-        end
     end
 
     methods (Static, Access = private)

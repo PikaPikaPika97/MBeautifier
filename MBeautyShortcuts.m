@@ -3,7 +3,6 @@ classdef MBeautyShortcuts
     
     properties (Access = private, Constant)
         ShorcutModes = {'editorpage', 'editorselection', 'file'};
-        AutomaticShortcutSupportUpperBound = '25.1';
     end
     
     methods (Static)
@@ -14,72 +13,12 @@ classdef MBeautyShortcuts
             %   'file' - Execute MBeauty.formatFile
             
             mode = MBeautyShortcuts.checkMode(mode);
-            
             shortCutStruct = MBeautyShortcuts.getShortcutCategoryStructure(mode);
-            if ~MBeautyShortcuts.supportsAutomaticShortcutCreation()
-                displayCommand = MBeautyShortcuts.escapeCommandForErrorMessage(shortCutStruct.Callback);
-                error('MBeautifier:ShortcutNotSupported', ...
-                    ['Automatic shortcut creation is not supported on MATLAB R2025a and newer. ', ...
-                    'Create a Favorite manually, optionally pin it to the Quick Access Toolbar, ', ...
-                    'and use this command: ', displayCommand]);
-            end
-
-            if ~verLessThan('matlab', '8.0')
-                category = 'MBeautifier';
-            else
-                category = 'Toolbar Shortcuts';
-            end
-            
-            % Below 2019b shortcuts will be sued
-            if MBeautyShortcuts.usesLegacyShortcutApi()
-                shortcutUtils = com.mathworks.mlwidgets.shortcuts.ShortcutUtils();
-                
-                try
-                    shortcutUtils.removeShortcut(category, shortCutStruct.Name);
-                catch %#ok<CTCH>
-                    % This command only fails on R2012b
-                end
-                shortcutUtils.addShortcutToBottom(shortCutStruct.Name, shortCutStruct.Callback, '', category, 'true');
-            else
-                % Above 2019b favourites + quick access toolbar will be
-                % used
-                fc = com.mathworks.mlwidgets.favoritecommands.FavoriteCommands.getInstance();
-                
-                if fc.hasCategory(category)
-                    
-                    method = fc.getClass().getDeclaredMethod('getCategories', []);
-                    method.setAccessible(true)
-                    categories = method.invoke(fc,[]);
-                    
-                    for catInd = 0:categories.size-1
-                        if strcmp(categories.get(catInd).getLabel, category)
-                            categoryMBeautifier = categories.get(catInd);
-                        end
-                    end
-                    
-                    if categoryMBeautifier.hasChildren()
-                        childToBeUpdated = [];
-                        childs = categoryMBeautifier.getChildren();
-                        for childInd = 0:childs.size-1
-                            if strcmp(childs.get(childInd).getLabel, shortCutStruct.Name)
-                                childToBeUpdated =  childs.get(childInd);
-                            end
-                        end
-                        
-                        if ~isempty(childToBeUpdated)
-                            childToBeUpdated.setCode(shortCutStruct.Callback);
-                        else
-                            MBeautyShortcuts.createFavouriteEntry(fc, category, shortCutStruct);
-                        end
-                        
-                    else
-                        MBeautyShortcuts.createFavouriteEntry(fc, category, shortCutStruct);
-                    end
-                    
-                else
-                    MBeautyShortcuts.createFavouriteEntry(fc, category, shortCutStruct);
-                end
-            end
+            displayCommand = MBeautyShortcuts.escapeCommandForErrorMessage(shortCutStruct.Callback);
+            error('MBeautifier:ShortcutNotSupported', ...
+                ['Automatic shortcut creation is not supported. ', ...
+                'Create a Favorite manually, optionally pin it to the Quick Access Toolbar, ', ...
+                'and use this command: ', displayCommand]);
         end
         
         function executeCallback(mode)
@@ -95,18 +34,6 @@ classdef MBeautyShortcuts
     end
     
     methods (Static, Access = private)
-        
-        function createFavouriteEntry(fc, category, shortCutStruct)
-            newMBeautyShortcut = com.mathworks.mlwidgets.favoritecommands.FavoriteCommandProperties();
-            newMBeautyShortcut.setLabel(shortCutStruct.Name);
-            newMBeautyShortcut.setCategoryLabel(category);
-            newMBeautyShortcut.setCode(shortCutStruct.Callback);
-            newMBeautyShortcut.setIsOnQuickToolBar(true);
-            newMBeautyShortcut.setIsShowingLabelOnToolBar(true);
-            
-            fc.addCommand(newMBeautyShortcut);
-        end
-        
         function structure = getShortcutCategoryStructure(mode)
             mode = MBeautyShortcuts.checkMode(mode);
             
@@ -122,14 +49,6 @@ classdef MBeautyShortcuts
             addPathCommand = ['addpath(''', pathToAdd, ''');'];
             structure.Callback = [addPathCommand, structure.Callback];
             
-        end
-
-        function tf = supportsAutomaticShortcutCreation()
-            tf = verLessThan('matlab', MBeautyShortcuts.AutomaticShortcutSupportUpperBound);
-        end
-
-        function tf = usesLegacyShortcutApi()
-            tf = verLessThan('matlab', '9.5');
         end
 
         function command = escapeCommandForErrorMessage(command)
