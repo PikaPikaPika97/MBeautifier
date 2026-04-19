@@ -987,32 +987,7 @@ classdef MFormatter < handle
         end
 
         function [containerBorderIndexes, maxDepth] = calculateContainerDepths(~, data)
-            % Calculates the container boundaries with container depth for a continous code line.
-
-            containerBorderIndexes = cell(numel(data), 2);
-            borderCount = 0;
-            depth = 1;
-            maxDepth = 1;
-            for i = 1:numel(data)
-                borderFound = true;
-                if any(strcmp(data(i), MBeautifier.Constants.ContainerOpeningBrackets))
-                    newDepth = depth + 1;
-                    maxDepth = newDepth;
-                elseif any(strcmp(data(i), MBeautifier.Constants.ContainerClosingBrackets))
-                    newDepth = depth - 1;
-                    depth = depth - 1;
-                else
-                    borderFound = false;
-                end
-
-                if borderFound
-                    borderCount = borderCount + 1;
-                    containerBorderIndexes{borderCount, 1} = i;
-                    containerBorderIndexes{borderCount, 2} = depth;
-                    depth = newDepth;
-                end
-            end
-            containerBorderIndexes = containerBorderIndexes(1:borderCount, :);
+            [containerBorderIndexes, maxDepth] = MBeautifier.ContainerScanner.calculateDepths(data);
         end
 
         function [data, arrayMap] = replaceContainer(obj, data)
@@ -1316,31 +1291,11 @@ classdef MFormatter < handle
         end
 
         function ret = isContinueToken(obj, element)
-            ret = strcmp(element, obj.TokenStruct.ContinueToken.Token) || ...
-                strcmp(element, obj.TokenStruct.ContinueMatrixToken.Token) || ...
-                strcmp(element, obj.TokenStruct.ContinueCurlyToken.Token);
+            ret = MBeautifier.ContinuationFormatting.isContinueToken(element, obj.TokenStruct);
         end
 
         function fullComment = buildContinousLineCommentAsPrecedingLines(~, contLineArray)
-            comments = cell(1, max(0, size(contLineArray, 1) - 1));
-            commentCount = 0;
-            for iCont = 1:size(contLineArray, 1) - 1
-                cComment = contLineArray{iCont, 2};
-                if isempty(strtrim(cComment))
-                    continue
-                end
-                if ~numel(regexp(cComment, '^\s*%'))
-                    cComment = ['% ', cComment];
-                end
-                commentCount = commentCount + 1;
-                comments{commentCount} = cComment;
-            end
-
-            if commentCount == 0
-                fullComment = '';
-            else
-                fullComment = strjoin(comments(1:commentCount), MBeautifier.Constants.NewLine);
-            end
+            fullComment = MBeautifier.ContinuationFormatting.buildCommentAsPrecedingLines(contLineArray);
         end
 
         function tf = hasMultipleStatements(~, data)
