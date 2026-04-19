@@ -402,14 +402,8 @@ classdef MFormatter < handle
         end
 
         function actComment = adjustInlineCommentSpacing(obj, actCode, actComment)
-            if isempty(actComment) || ~obj.shouldPreserveInlineCommentSpacing()
-                return;
-            end
-
-            commentSpacing = regexp(actCode, '\s+$', 'match', 'once');
-            if ~isempty(commentSpacing)
-                actComment = [commentSpacing, actComment];
-            end
+            actComment = MBeautifier.LineFormattingStages.preserveInlineCommentSpacing( ...
+                actCode, actComment, obj.Configuration.inlineCommentSpacingStrategy());
         end
 
         function actCode = appendContinuationMarkerIfNeeded(~, actCode, trimmedCode, containerDepth)
@@ -952,55 +946,10 @@ classdef MFormatter < handle
         end
 
         function data = formatDeclarationLine(obj, data)
-            style = lower(strtrim(obj.Configuration.declarationSpacingStyle()));
-            trimmed = strtrim(data);
-
-            if isempty(trimmed) || strcmp(style, 'preserve')
-                data = trimmed;
-                return;
-            end
-
-            parts = regexp(trimmed, ...
-                '^(?<name>[a-zA-Z]\w*(?:\.[a-zA-Z]\w*)*)(?<shape>\s*\([^=]*?\))?(?<type>(?:\s+[a-zA-Z]\w*(?:\.[a-zA-Z]\w*)*)*)?(?<validators>\s*\{.*\})?(?<default>\s*=\s*.*)?$', ...
-                'names', 'once');
-
-            if isempty(parts)
-                data = obj.performReplacements(trimmed);
-                return;
-            end
-
-            shape = strtrim(parts.shape);
-            type = strtrim(parts.type);
-            validators = strtrim(parts.validators);
-            defaultValue = strtrim(parts.default);
-
-            data = parts.name;
-
-            if strcmp(style, 'compact')
-                if ~isempty(shape)
-                    data = [data, shape];
-                end
-                if ~isempty(type)
-                    data = [data, ' ', type];
-                end
-                if ~isempty(validators)
-                    data = [data, validators];
-                end
-            else
-                if ~isempty(shape)
-                    data = [data, ' ', shape];
-                end
-                if ~isempty(type)
-                    data = [data, ' ', type];
-                end
-                if ~isempty(validators)
-                    data = [data, ' ', validators];
-                end
-            end
-
-            if ~isempty(defaultValue)
-                defaultValue = regexprep(defaultValue, '^\s*=\s*', '');
-                data = [data, ' = ', strtrim(defaultValue)];
+            [data, wasHandled] = MBeautifier.LineFormattingStages.formatDeclarationLine( ...
+                data, obj.Configuration.declarationSpacingStyle());
+            if ~wasHandled
+                data = obj.performReplacements(data);
             end
         end
 
