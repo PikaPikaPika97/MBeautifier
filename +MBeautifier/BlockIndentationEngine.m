@@ -26,8 +26,8 @@ classdef BlockIndentationEngine < handle
             indent = obj.getIndentationString();
             makeBlankLinesEmpty = obj.Configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
 
-            explicitContinuationMode = false;
             containerDepth = 0;
+            continuationLayerNext = 0;
             layerNext = 0;
             stack = {};
             functionModes = {};
@@ -38,7 +38,7 @@ classdef BlockIndentationEngine < handle
                 layer = layerNext;
 
                 [lines{linect}, line, words, isOldStyleFunctionCall] = obj.analyzeLine(lines{linect});
-                continuationLayer = obj.continuationLayerForLine(line, containerDepth, explicitContinuationMode);
+                continuationLayer = obj.continuationLayerForLine(lines{linect}, continuationLayerNext);
 
                 if obj.shouldProcessLine(line, isOldStyleFunctionCall)
                     isScriptLocalFunction = obj.isScriptLocalFunctionStart(words, stack, hasTopLevelScriptCode);
@@ -48,9 +48,11 @@ classdef BlockIndentationEngine < handle
 
                     [layer, layerNext, stack, functionModes] = obj.processKeywords( ...
                         words, layer, layerNext, stack, functionModes, strategy, isScriptLocalFunction);
-                    [explicitContinuationMode, containerDepth] = obj.updateContinuationState(line, words, containerDepth);
-                elseif explicitContinuationMode && obj.shouldEndContinuationAfterSkippedLine(lines{linect})
-                    explicitContinuationMode = false;
+                    [continuationLayerNext, containerDepth] = obj.updateContinuationState( ...
+                        line, words, continuationLayer, continuationLayerNext, containerDepth);
+                elseif continuationLayerNext && obj.shouldEndContinuationAfterSkippedLine(lines{linect})
+                    continuationLayerNext = 0;
+                    containerDepth = 0;
                 end
 
                 layer = layer + continuationLayer;
@@ -229,18 +231,28 @@ classdef BlockIndentationEngine < handle
             functionModes(end) = [];
         end
 
-        function layer = continuationLayerForLine(obj, line, containerDepth, explicitContinuationMode)
-            leadingClosingDepth = min(containerDepth, obj.leadingClosingContainerCount(line));
-            layer = containerDepth - leadingClosingDepth;
-            if explicitContinuationMode
-                layer = layer + 1;
-            end
+        function layer = continuationLayerForLine(obj, rawLine, continuationLayerNext)
+            leadingClosingDepth = min(continuationLayerNext, obj.leadingClosingContainerCount(rawLine));
+            layer = continuationLayerNext - leadingClosingDepth;
         end
 
-        function [explicitContinuationMode, containerDepth] = updateContinuationState(obj, line, words, containerDepth)
-            containerDepth = max(0, containerDepth + obj.containerDepthDelta(line));
-            explicitContinuationMode = obj.endsWithContinuationToken(line) && containerDepth == 0 && ...
-                ~obj.startsWithBlockOpeningKeyword(words);
+        function [continuationLayerNext, containerDepth] = updateContinuationState( ...
+                obj, line, words, continuationLayer, continuationLayerNext, containerDepth)
+            previousContainerDepth = containerDepth;
+            depthDelta = obj.containerDepthDelta(line);
+            containerDepth = max(0, containerDepth + depthDelta);
+
+            if containerDepth == 0
+                if obj.endsWithContinuationToken(line) && ~obj.startsWithBlockOpeningKeyword(words)
+                    continuationLayerNext = continuationLayer + 1;
+                else
+                    continuationLayerNext = 0;
+                end
+            elseif depthDelta > 0 || previousContainerDepth == 0
+                continuationLayerNext = continuationLayer + 1;
+            elseif depthDelta < 0
+                continuationLayerNext = continuationLayer;
+            end
         end
 
         function tf = shouldEndContinuationAfterSkippedLine(~, line)
