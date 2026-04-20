@@ -413,7 +413,7 @@ classdef MFormatter < handle
         function actCode = appendContinuationMarkerIfNeeded(obj, actCode, trimmedCode, containerDepth)
             % Auto append "..." to the lines of continuous containers.
             if ~obj.AutoAppendContinuationMarkers || ~containerDepth ...
-                    || (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
+                    || MBeautifier.SourceLine.endsWithContinuationToken(trimmedCode)
                 return;
             end
 
@@ -425,7 +425,7 @@ classdef MFormatter < handle
         end
 
         function tf = shouldAccumulateContinuousLine(~, trimmedCode, splittingPos, isInContinousLine)
-            tf = (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...')) ...
+            tf = MBeautifier.SourceLine.endsWithContinuationToken(trimmedCode) ...
                 || (isequal(splittingPos, 1) && isInContinousLine);
         end
 
@@ -1063,16 +1063,10 @@ classdef MFormatter < handle
             end
         end
 
-        function ret = calculateContainerDepthDeltaOfLine(obj, code)
+        function ret = calculateContainerDepthDeltaOfLine(~, code)
             % Calculates the delta of container depth in a single code line.
 
-            % Pre-check for opening and closing brackets: the final delta has to be calculated after the transponations and the
-            % strings are replaced, which are time consuming actions
-            ret = 0;
-            if numel(regexp(code, '{|[')) || numel(regexp(code, '}|]'))
-                actCodeTemp = obj.replaceStrings(obj.replaceTransponations(code));
-                ret = numel(regexp(actCodeTemp, '{|[')) - numel(regexp(actCodeTemp, '}|]'));
-            end
+            ret = MBeautifier.SourceLine.containerDepthDelta(code, '[{', ']}');
         end
 
         function [containerBorderIndexes, maxDepth] = calculateContainerDepths(~, data)

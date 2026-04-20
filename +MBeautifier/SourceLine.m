@@ -90,10 +90,15 @@ classdef SourceLine
             line = output(1:outputIndex);
         end
 
-        function delta = containerDepthDelta(line)
+        function delta = containerDepthDelta(line, openingBrackets, closingBrackets)
+            if nargin < 2
+                openingBrackets = '([{';
+                closingBrackets = ')]}';
+            end
+
             codeLine = MBeautifier.SourceLine.codeWithoutStringsAndComments(line);
-            openingCount = sum(codeLine == '(' | codeLine == '[' | codeLine == '{');
-            closingCount = sum(codeLine == ')' | codeLine == ']' | codeLine == '}');
+            openingCount = sum(ismember(codeLine, openingBrackets));
+            closingCount = sum(ismember(codeLine, closingBrackets));
             delta = openingCount - closingCount;
         end
 

@@ -82,6 +82,8 @@ classdef TestSourceLineModel < matlab.unittest.TestCase
                 MBeautifier.SourceLine.containerDepthDelta('value = "[" + ''{''; % ({['), 0);
             testCase.verifyEqual( ...
                 MBeautifier.SourceLine.containerDepthDelta('value = outer([1, 2'), 2);
+            testCase.verifyEqual( ...
+                MBeautifier.SourceLine.containerDepthDelta('value = outer([1, 2', '[{', ']}'), 1);
         end
 
         function testLeadingClosingContainerCountIgnoresStringContents(testCase)
