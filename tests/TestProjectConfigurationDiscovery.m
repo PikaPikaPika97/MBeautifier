@@ -70,6 +70,8 @@ classdef TestProjectConfigurationDiscovery < matlab.unittest.TestCase
         function testUnsavedEditorDocumentFallsBackToDefaultConfiguration(testCase)
             input = sprintf('x = 1   %% comment\n');
             expected = FormatterTestUtils.formatText(input);
+            openDocuments = matlab.desktop.editor.getAll();
+            testCase.addTeardown(@() TestProjectConfigurationDiscovery.closeDocumentsOpenedAfter(openDocuments));
             document = MBeautifier.DesktopAdapter.newDocument(input);
             testCase.addTeardown(@() TestProjectConfigurationDiscovery.closeIfValid(document));
             document.makeActive();
@@ -87,6 +89,28 @@ classdef TestProjectConfigurationDiscovery < matlab.unittest.TestCase
             if ~isempty(document) && isvalid(document)
                 document.close();
                 drawnow();
+            end
+        end
+
+        function closeDocumentsOpenedAfter(openDocuments)
+            currentDocuments = matlab.desktop.editor.getAll();
+            for idx = 1:numel(currentDocuments)
+                document = currentDocuments(idx);
+                if TestProjectConfigurationDiscovery.wasDocumentAlreadyOpen(document, openDocuments)
+                    continue;
+                end
+
+                TestProjectConfigurationDiscovery.closeIfValid(document);
+            end
+        end
+
+        function tf = wasDocumentAlreadyOpen(document, openDocuments)
+            tf = false;
+            for idx = 1:numel(openDocuments)
+                if isvalid(openDocuments(idx)) && isequal(document, openDocuments(idx))
+                    tf = true;
+                    return;
+                end
             end
         end
     end

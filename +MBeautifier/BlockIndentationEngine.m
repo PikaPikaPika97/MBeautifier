@@ -38,6 +38,9 @@ classdef BlockIndentationEngine < handle
                 if obj.shouldProcessLine(line, isOldStyleFunctionCall)
                     [layer, layerNext, stack] = obj.processKeywords(words, layer, layerNext, stack, strategy);
                     [continuationMode, layerNext] = obj.updateContinuationMode(words, continuationMode, layerNext);
+                elseif continuationMode && obj.shouldEndContinuationAfterSkippedLine(lines{linect})
+                    continuationMode = 0;
+                    layerNext = obj.decreaseContinuationLayer(layerNext);
                 end
 
                 lines{linect} = obj.applyIndentation(lines{linect}, layer, indent, makeBlankLinesEmpty);
@@ -170,6 +173,19 @@ classdef BlockIndentationEngine < handle
                 continuationMode = 0;
                 layerNext = layerNext - 1;
             end
+        end
+
+        function tf = shouldEndContinuationAfterSkippedLine(~, line)
+            tf = ~isempty(strtrim(line)) && isempty(regexp(strtrim(line), '^%', 'once'));
+        end
+
+        function layerNext = decreaseContinuationLayer(~, layerNext)
+            if layerNext <= 0
+                error('MBeautifier:IndentationContinuationInvariant', ...
+                    'Continuation indentation cannot end below zero.');
+            end
+
+            layerNext = layerNext - 1;
         end
 
         function indentedLine = applyIndentation(~, line, layer, indent, makeBlankLinesEmpty)

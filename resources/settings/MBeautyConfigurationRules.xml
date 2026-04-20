@@ -191,7 +191,7 @@
       </SpecialRule>
       <SpecialRule>
          <Key>SectionPrecedingNewlineCount</Key>
-         <Value>1</Value>
+         <Value>-1</Value>
       </SpecialRule>
       <SpecialRule>
          <Key>SectionTrailingNewlineCount</Key>
@@ -223,11 +223,15 @@
       </SpecialRule>
       <SpecialRule>
          <Key>StatementBreakStrategy</Key>
-         <Value>ContextAware</Value>
+         <Value>Never</Value>
       </SpecialRule>
       <SpecialRule>
          <Key>DeclarationSpacingStyle</Key>
-         <Value>Readable</Value>
+         <Value>Preserve</Value>
+      </SpecialRule>
+      <SpecialRule>
+         <Key>AutoAppendContinuationMarkers</Key>
+         <Value>0</Value>
       </SpecialRule>
       <SpecialRule>
          <Key>InlineContinousLines</Key>
@@ -259,7 +263,11 @@
       </SpecialRule>
       <SpecialRule>
          <Key>InlineCommentSpacingStrategy</Key>
-         <Value>Normalize</Value>
+         <Value>Preserve</Value>
+      </SpecialRule>
+      <SpecialRule>
+         <Key>PreserveIndexExpressionSpacing</Key>
+         <Value>1</Value>
       </SpecialRule>
    </SpecialRules>
 </MBeautifyRuleConfiguration>

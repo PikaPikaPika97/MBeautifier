@@ -15,7 +15,13 @@ classdef DesktopAdapter
         end
 
         function document = newDocument(text)
-            document = matlab.desktop.editor.newDocument(text);
+            document = matlab.desktop.editor.newDocument();
+            try
+                document.Text = text;
+            catch ME
+                MBeautifier.DesktopAdapter.closeDocument(document);
+                rethrow(ME);
+            end
         end
 
         function closeDocument(document)

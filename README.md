@@ -66,9 +66,9 @@ The current list of special rules:
  - **SectionPrecedingNewlineCount**: Integer value. Defines how many empty lines should precede the section comments (`%% `). Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: section comments will be preceded exactly by X empty lines.
  - **SectionTrailingNewlineCount**: Integer value. Defines how many empty lines should follow the section comments (`%% `). Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: section comments will be followed exactly by X empty lines.
  - **EndingNewlineCount**: Integer value. Defines how many empty lines should be placed on the end of the input. Negative values mean no special formatting is needed (the final format is defined by the input and the MaximalNewLines rule). For any number "X" bigger or equal to zero: input will trailed exactly by X empty lines.
- - **StatementBreakStrategy**: ['Always'|'ContextAware'|'Never']. Controls how MBeautifier handles multiple statements on a single line. `Always` always splits, `Never` preserves them, and `ContextAware` preserves compact guards such as `if cond; return; end` while still splitting setup chains such as `clc; clear; close all;`. Defaults to `"ContextAware"`.
- - **DeclarationSpacingStyle**: ['Readable'|'Compact'|'Preserve']. Controls spacing inside declaration-heavy contexts such as `arguments` blocks. `Readable` keeps declarations explicit, `Compact` removes optional declaration spacing, and `Preserve` keeps intra-line spacing as-is.
- - **InlineCommentSpacingStrategy**: ['Normalize'|'Preserve']. Controls spacing before inline trailing comments. `Normalize` enforces a single separating space, `Preserve` keeps the original spacing.
+ - **StatementBreakStrategy**: ['Always'|'ContextAware'|'Never']. Controls how MBeautifier handles multiple statements on a single line. `Always` always splits, `Never` preserves them, and `ContextAware` preserves compact guards such as `if cond; return; end` while still splitting setup chains such as `clc; clear; close all;`. Defaults to `"Never"`.
+ - **DeclarationSpacingStyle**: ['Readable'|'Compact'|'Preserve']. Controls spacing inside declaration-heavy contexts such as `arguments` blocks. `Readable` keeps declarations explicit, `Compact` removes optional declaration spacing, and `Preserve` keeps intra-line spacing as-is. Defaults to `"Preserve"`.
+ - **InlineCommentSpacingStrategy**: ['Normalize'|'Preserve']. Controls spacing before inline trailing comments. `Normalize` enforces a single separating space, `Preserve` keeps the original spacing. Defaults to `"Preserve"`.
  - **AllowMultipleStatementsPerLine**: [1|0]. Legacy alias for the statement break behavior. `0` maps to `StatementBreakStrategy = Always` and `1` maps to `StatementBreakStrategy = Never`.
  - **PreserveInlineCommentSpacing**: [1|0]. Legacy alias for the inline comment spacing behavior. `0` maps to `InlineCommentSpacingStrategy = Normalize` and `1` maps to `InlineCommentSpacingStrategy = Preserve`.
  
@@ -81,12 +81,14 @@ The current list of special rules:
 
  - **MatrixIndexing_ArithmeticOperatorPadding**: [1|0]. Indicates whether the arithmetic operators should be padded by white spaces (using the operator padding rules), when they are used to index matrices. For example: `matrix(end+1) = 1` can be formatted as `matrix(end+1) = 1` when value is set to 0, or as `matrix(end + 1) = 1` if value is set to 1.
  - **CellArrayIndexing_ArithmeticOperatorPadding**: [1|0]. Indicates the same as `MatrixIndexing_ArithmeticOperatorPadding` but for cell arrays.
+ - **PreserveIndexExpressionSpacing**: [1|0]. When set to 1, MBeautifier preserves arithmetic spacing inside matrix and cell indexing expressions instead of applying the indexing padding rules. Set this to 0 to use `MatrixIndexing_ArithmeticOperatorPadding` and `CellArrayIndexing_ArithmeticOperatorPadding`. Defaults to 1.
  
 ##### Special rules regarding continous lines
 
  - **InlineContinousLines**: [1|0]. If set to 1, MBeautifier will in-line continuous line operators ("...") everywhere except in matrices (inside [] brackets) and in curly brackets ({}) - these cases are handled by the next two options. In-lining means: the "..." operator will be removed and the next line will be copied into its place.
  - **InlineContinousLinesInMatrixes**: [1|0]. Same as **InlineContinousLines**, but only has effect inside brackets ("[]").
  - **InlineContinousLinesInCurlyBracket**: [1|0]. Same as **InlineContinousLines**, but only has effect inside curly brackets ("{}").
+ - **AutoAppendContinuationMarkers**: [1|0]. If set to 1, MBeautifier appends `...` while formatting multiline containers. Defaults to 0 so legal multiline matrix and cell literals are preserved without synthetic continuation markers.
  
 ##### Special rules regarding indentation
 
