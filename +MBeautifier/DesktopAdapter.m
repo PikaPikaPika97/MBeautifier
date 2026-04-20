@@ -18,9 +18,9 @@ classdef DesktopAdapter
             document = matlab.desktop.editor.newDocument();
             try
                 document.Text = text;
-            catch error
+            catch ME
                 MBeautifier.DesktopAdapter.closeDocument(document);
-                rethrow(error);
+                rethrow(ME);
             end
         end
 
