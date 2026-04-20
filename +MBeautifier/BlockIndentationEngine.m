@@ -78,8 +78,9 @@ classdef BlockIndentationEngine < handle
             isOldStyleFunctionCall = obj.isOldStyleFunctionCall(line);
         end
 
-        function line = removeStringsAndComments(obj, rawLine)
-            line = '';
+        function line = removeStringsAndComments(~, rawLine)
+            output = blanks(numel(rawLine));
+            outputIndex = 0;
             stringDelimiter = '';
             previousNonspace = '';
             index = 1;
@@ -93,15 +94,17 @@ classdef BlockIndentationEngine < handle
                     end
 
                     if currentCharacter == ''''
-                        if obj.isTransposeQuote(previousNonspace)
-                            line = [line, currentCharacter]; %#ok<AGROW>
+                        if MBeautifier.LexicalRules.isTransposeQuote(previousNonspace)
+                            outputIndex = outputIndex + 1;
+                            output(outputIndex) = currentCharacter;
                         else
                             stringDelimiter = currentCharacter;
                         end
                     elseif currentCharacter == '"'
                         stringDelimiter = currentCharacter;
                     else
-                        line = [line, currentCharacter]; %#ok<AGROW>
+                        outputIndex = outputIndex + 1;
+                        output(outputIndex) = currentCharacter;
                     end
                 elseif currentCharacter == stringDelimiter
                     if index < numel(rawLine) && rawLine(index + 1) == stringDelimiter
@@ -116,11 +119,8 @@ classdef BlockIndentationEngine < handle
                 end
                 index = index + 1;
             end
-        end
 
-        function tf = isTransposeQuote(~, previousNonspace)
-            tf = ~isempty(previousNonspace) && ...
-                ~isempty(regexp(previousNonspace, '[a-zA-Z0-9_\)\]\}\.''"]', 'once'));
+            line = output(1:outputIndex);
         end
 
         function tf = isOldStyleFunctionCall(~, line)

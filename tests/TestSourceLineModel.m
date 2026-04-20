@@ -16,6 +16,13 @@ classdef TestSourceLineModel < matlab.unittest.TestCase
             testCase.verifyEqual(analysis.Comment, '% comment');
         end
 
+        function testIgnoresPercentInsideAdjacentCharacterArrays(testCase)
+            analysis = MBeautifier.SourceLine.analyze('x = {''%d'' ''%f''}; % comment');
+
+            testCase.verifyEqual(analysis.Code, 'x = {''%d'' ''%f''}; ');
+            testCase.verifyEqual(analysis.Comment, '% comment');
+        end
+
         function testIgnoresPercentInsideStringArray(testCase)
             analysis = MBeautifier.SourceLine.analyze('x = "100%"; % comment');
 
