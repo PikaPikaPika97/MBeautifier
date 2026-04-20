@@ -15,17 +15,25 @@ classdef DesktopAdapter
         end
 
         function document = newDocument(text)
-            document = matlab.desktop.editor.newDocument();
+            document = [];
             try
-                document.Text = text;
+                document = matlab.desktop.editor.newDocument(text);
             catch ME
                 MBeautifier.DesktopAdapter.closeDocument(document);
-                rethrow(ME);
+                wrappedException = MException('MBeautifier:EditorDocumentCreationFailed', ...
+                    'Unable to create a MATLAB Editor document with the requested text.');
+                wrappedException = addCause(wrappedException, ME);
+                throw(wrappedException);
             end
         end
 
         function closeDocument(document)
+            if isempty(document) || ~isvalid(document)
+                return;
+            end
+
             document.close();
+            drawnow();
         end
 
         function saveDocumentAs(document, file)

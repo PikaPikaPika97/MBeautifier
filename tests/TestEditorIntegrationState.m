@@ -73,6 +73,7 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
         function closeDocumentIfOpen(document)
             if ~isempty(document) && isvalid(document)
                 document.close();
+                drawnow();
             end
         end
 
