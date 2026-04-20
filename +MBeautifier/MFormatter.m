@@ -438,11 +438,10 @@ classdef MFormatter < handle
             end
         end
 
-        function replacedTextArray = finalizeOutputEntries(~, replacedTextArray, options)
-            % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one.
-            if ~isempty(replacedTextArray) && ~isempty(strtrim(replacedTextArray{end}))
-                replacedTextArray{end} = strtrim(replacedTextArray{end});
-            end
+        function replacedTextArray = finalizeOutputEntries(obj, replacedTextArray, options)
+            % The formatter appends a newline after every split entry. Remove the
+            % final synthetic newline before applying explicit ending-newline rules.
+            replacedTextArray = obj.removeTrailingNewLineCharacters(replacedTextArray, 1);
 
             if options.formatStartingNewlines
                 replacedTextArray = MBeautifier.MFormatter.handleStartingEmptyLines( ...
@@ -450,8 +449,51 @@ classdef MFormatter < handle
             end
 
             if options.formatEndingNewlines
-                replacedTextArray = MBeautifier.MFormatter.handleTrailingEmptyLines( ...
-                    replacedTextArray, options.endingNewlines);
+                replacedTextArray = obj.handleEndingNewlines(replacedTextArray, options.endingNewlines);
+            end
+        end
+
+        function textArray = handleEndingNewlines(obj, textArray, neededNewLineCount)
+            trailingNewLines = obj.countTrailingNewLineCharacters(textArray);
+            newLineDelta = neededNewLineCount - trailingNewLines;
+
+            if newLineDelta < 0
+                textArray = obj.removeTrailingNewLineCharacters(textArray, abs(newLineDelta));
+            elseif newLineDelta > 0
+                textArray = [textArray, repmat({MBeautifier.Constants.NewLine}, 1, newLineDelta)];
+            end
+        end
+
+        function count = countTrailingNewLineCharacters(~, textArray)
+            count = 0;
+            newLine = MBeautifier.Constants.NewLine;
+            for i = numel(textArray):-1:1
+                entry = textArray{i};
+                for j = numel(entry):-1:1
+                    if entry(j) ~= newLine
+                        return;
+                    end
+                    count = count + 1;
+                end
+            end
+        end
+
+        function textArray = removeTrailingNewLineCharacters(~, textArray, removeCount)
+            newLine = MBeautifier.Constants.NewLine;
+
+            while removeCount > 0 && ~isempty(textArray)
+                entry = textArray{end};
+                while removeCount > 0 && ~isempty(entry) && entry(end) == newLine
+                    entry(end) = [];
+                    removeCount = removeCount - 1;
+                end
+
+                if isempty(entry)
+                    textArray(end) = [];
+                else
+                    textArray{end} = entry;
+                    return;
+                end
             end
         end
 
