@@ -96,6 +96,7 @@ The current list of special rules:
  - **IndentationCount**: Integer value. Specifies the level of auto-indentation (how many **IndentationCharacter** means one level of indentation). Defaults to "4".
  - **Indentation_TrimBlankLines**: [1|0]. Specifies if blank lines (lines containing only white space characters - as result of auto-indentation) should be trimmed (made empty) by MBeautifier. Defaults to "1" as it can lead to smaller file sizes.
  - **Indentation_Strategy**: ['AllFunctions'|'NestedFunctions'|'NoIndent']. Controls MBeautifier's keyword-stack indentation mode for function bodies. Possible values: "AllFunctions" - indent the body of each function, "NestedFunctions" - indent the body of nested functions only, "NoIndent" - all of the functions' body will be indented the same amount as the function keyword itself.
+ - **IndentScriptLocalFunctionBodies**: [1|0]. When **Indentation_Strategy** is "NestedFunctions", controls whether local function bodies in scripts keep one indentation level. Defaults to "1".
   
 #### Directives
 

@@ -262,6 +262,10 @@
          <Value>NestedFunctions</Value>
       </SpecialRule>
       <SpecialRule>
+         <Key>IndentScriptLocalFunctionBodies</Key>
+         <Value>1</Value>
+      </SpecialRule>
+      <SpecialRule>
          <Key>InlineCommentSpacingStrategy</Key>
          <Value>Preserve</Value>
       </SpecialRule>

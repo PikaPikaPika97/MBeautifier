@@ -77,6 +77,10 @@ classdef Configuration < handle
         function tf = preserveIndexExpressionSpacing(obj)
             tf = obj.specialRuleDoubleValueOr('PreserveIndexExpressionSpacing', 1) ~= 0;
         end
+
+        function tf = indentScriptLocalFunctionBodies(obj)
+            tf = obj.specialRuleDoubleValueOr('IndentScriptLocalFunctionBodies', 1) ~= 0;
+        end
     end
 
     methods (Static)

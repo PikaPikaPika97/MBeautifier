@@ -26,23 +26,34 @@ classdef BlockIndentationEngine < handle
             indent = obj.getIndentationString();
             makeBlankLinesEmpty = obj.Configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
 
-            continuationMode = 0;
+            explicitContinuationMode = false;
+            containerDepth = 0;
             layerNext = 0;
             stack = {};
+            functionModes = {};
+            hasTopLevelScriptCode = false;
 
             lines = regexp(source, MBeautifier.Constants.NewLine, 'split');
             for linect = 1:numel(lines)
                 layer = layerNext;
 
                 [lines{linect}, line, words, isOldStyleFunctionCall] = obj.analyzeLine(lines{linect});
+                continuationLayer = obj.continuationLayerForLine(line, containerDepth, explicitContinuationMode);
+
                 if obj.shouldProcessLine(line, isOldStyleFunctionCall)
-                    [layer, layerNext, stack] = obj.processKeywords(words, layer, layerNext, stack, strategy);
-                    [continuationMode, layerNext] = obj.updateContinuationMode(words, continuationMode, layerNext);
-                elseif continuationMode && obj.shouldEndContinuationAfterSkippedLine(lines{linect})
-                    continuationMode = 0;
-                    layerNext = obj.decreaseContinuationLayer(layerNext);
+                    isScriptLocalFunction = obj.isScriptLocalFunctionStart(words, stack, hasTopLevelScriptCode);
+                    if obj.isTopLevelScriptCode(words, stack)
+                        hasTopLevelScriptCode = true;
+                    end
+
+                    [layer, layerNext, stack, functionModes] = obj.processKeywords( ...
+                        words, layer, layerNext, stack, functionModes, strategy, isScriptLocalFunction);
+                    [explicitContinuationMode, containerDepth] = obj.updateContinuationState(line, words, containerDepth);
+                elseif explicitContinuationMode && obj.shouldEndContinuationAfterSkippedLine(lines{linect})
+                    explicitContinuationMode = false;
                 end
 
+                layer = layer + continuationLayer;
                 lines{linect} = obj.applyIndentation(lines{linect}, layer, indent, makeBlankLinesEmpty);
             end
 
@@ -83,7 +94,8 @@ classdef BlockIndentationEngine < handle
             tf = ~isempty(line) && line(1) ~= '%' && ~isOldStyleFunctionCall;
         end
 
-        function [layer, layerNext, stack] = processKeywords(obj, words, layer, layerNext, stack, strategy)
+        function [layer, layerNext, stack, functionModes] = processKeywords( ...
+                obj, words, layer, layerNext, stack, functionModes, strategy, isScriptLocalFunction)
             for wordct = 1:numel(words)
                 currentWord = words{wordct};
                 if strcmp(currentWord, '%')
@@ -91,7 +103,8 @@ classdef BlockIndentationEngine < handle
                 end
 
                 if any(strcmp(currentWord, obj.KeywordsIncrease))
-                    [layer, layerNext, stack] = obj.handleIncreaseKeyword(currentWord, layer, layerNext, stack, strategy);
+                    [layer, layerNext, stack, functionModes] = obj.handleIncreaseKeyword( ...
+                        currentWord, layer, layerNext, stack, functionModes, strategy, isScriptLocalFunction);
                 end
 
                 if any(strcmp(currentWord, obj.KeywordsSandwich)) && wordct == 1
@@ -99,26 +112,34 @@ classdef BlockIndentationEngine < handle
                 end
 
                 if any(strcmp(currentWord, obj.KeywordsDecrease))
-                    [layer, layerNext, stack] = obj.handleDecreaseKeyword(wordct, layer, layerNext, stack, strategy);
+                    [layer, layerNext, stack, functionModes] = obj.handleDecreaseKeyword( ...
+                        wordct, layer, layerNext, stack, functionModes);
                 end
             end
         end
 
-        function [layer, layerNext, stack] = handleIncreaseKeyword(~, currentWord, layer, layerNext, stack, strategy)
+        function [layer, layerNext, stack, functionModes] = handleIncreaseKeyword( ...
+                ~, currentWord, layer, layerNext, stack, functionModes, strategy, isScriptLocalFunction)
             layerNext = layerNext + 1;
             stack{end+1} = currentWord;
+            functionModes{end+1} = '';
 
             if strcmp(stack{end}, 'function')
                 switch lower(strategy)
                     case 'nestedfunctions'
                         if isscalar(stack)
-                            layerNext = layerNext - 1;
+                            if ~isScriptLocalFunction
+                                layerNext = layerNext - 1;
+                                functionModes{end} = 'nestedTopNoIndent';
+                            end
                         elseif strcmp(stack{end-1}, 'function')
                             layer = layer + 1;
                             layerNext = layerNext + 1;
+                            functionModes{end} = 'nestedFunction';
                         end
                     case 'noindent'
                         layerNext = layerNext - 1;
+                        functionModes{end} = 'noIndent';
                 end
             end
 
@@ -127,7 +148,8 @@ classdef BlockIndentationEngine < handle
             end
         end
 
-        function [layer, layerNext, stack] = handleDecreaseKeyword(~, wordct, layer, layerNext, stack, strategy)
+        function [layer, layerNext, stack, functionModes] = handleDecreaseKeyword( ...
+                ~, wordct, layer, layerNext, stack, functionModes)
             if wordct == 1
                 layer = layer - 1;
             end
@@ -138,14 +160,12 @@ classdef BlockIndentationEngine < handle
             end
 
             if strcmp(stack{end}, 'function')
-                switch lower(strategy)
-                    case 'nestedfunctions'
-                        if isscalar(stack)
-                            layerNext = layerNext + 1;
-                        elseif strcmp(stack{end-1}, 'function')
-                            layer = layer - 1;
-                        end
-                    case 'noindent'
+                switch functionModes{end}
+                    case 'nestedTopNoIndent'
+                        layerNext = layerNext + 1;
+                    case 'nestedFunction'
+                        layer = layer - 1;
+                    case 'noIndent'
                         if wordct == 1
                             layer = layer + 1;
                         end
@@ -161,31 +181,70 @@ classdef BlockIndentationEngine < handle
             end
 
             stack(end) = [];
+            functionModes(end) = [];
         end
 
-        function [continuationMode, layerNext] = updateContinuationMode(~, words, continuationMode, layerNext)
-            if strcmp(words{end}, '...')
-                if ~continuationMode
-                    continuationMode = 1;
-                    layerNext = layerNext + 1;
-                end
-            elseif continuationMode
-                continuationMode = 0;
-                layerNext = layerNext - 1;
+        function layer = continuationLayerForLine(obj, line, containerDepth, explicitContinuationMode)
+            leadingClosingDepth = min(containerDepth, obj.leadingClosingContainerCount(line));
+            layer = containerDepth - leadingClosingDepth;
+            if explicitContinuationMode
+                layer = layer + 1;
             end
+        end
+
+        function [explicitContinuationMode, containerDepth] = updateContinuationState(obj, line, words, containerDepth)
+            containerDepth = max(0, containerDepth + obj.containerDepthDelta(line));
+            explicitContinuationMode = obj.endsWithContinuationToken(line) && containerDepth == 0 && ...
+                ~obj.startsWithBlockOpeningKeyword(words);
         end
 
         function tf = shouldEndContinuationAfterSkippedLine(~, line)
             tf = ~isempty(strtrim(line)) && isempty(regexp(strtrim(line), '^%', 'once'));
         end
 
-        function layerNext = decreaseContinuationLayer(~, layerNext)
-            if layerNext <= 0
-                error('MBeautifier:IndentationContinuationInvariant', ...
-                    'Continuation indentation cannot end below zero.');
-            end
+        function tf = isTopLevelScriptCode(obj, words, stack)
+            firstWord = obj.firstSignificantWord(words);
+            tf = isempty(stack) && ~isempty(firstWord) && ...
+                ~any(strcmp(firstWord, {'function', 'classdef'}));
+        end
 
-            layerNext = layerNext - 1;
+        function tf = startsWithBlockOpeningKeyword(obj, words)
+            firstWord = obj.firstSignificantWord(words);
+            tf = any(strcmp(firstWord, obj.KeywordsIncrease));
+        end
+
+        function tf = isScriptLocalFunctionStart(obj, words, stack, hasTopLevelScriptCode)
+            firstWord = obj.firstSignificantWord(words);
+            tf = hasTopLevelScriptCode && isempty(stack) && strcmp(firstWord, 'function') && ...
+                obj.Configuration.indentScriptLocalFunctionBodies();
+        end
+
+        function word = firstSignificantWord(~, words)
+            word = '';
+            for idx = 1:numel(words)
+                if ~isempty(words{idx})
+                    word = words{idx};
+                    return;
+                end
+            end
+        end
+
+        function count = leadingClosingContainerCount(~, line)
+            trimmedLine = strtrim(line);
+            count = 0;
+            while count < numel(trimmedLine) && any(trimmedLine(count + 1) == ')]}')
+                count = count + 1;
+            end
+        end
+
+        function delta = containerDepthDelta(~, line)
+            openingCount = sum(line == '(' | line == '[' | line == '{');
+            closingCount = sum(line == ')' | line == ']' | line == '}');
+            delta = openingCount - closingCount;
+        end
+
+        function tf = endsWithContinuationToken(~, line)
+            tf = ~isempty(regexp(strtrim(line), '\.\.\.$', 'once'));
         end
 
         function indentedLine = applyIndentation(~, line, layer, indent, makeBlankLinesEmpty)
