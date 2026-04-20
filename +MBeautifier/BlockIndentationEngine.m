@@ -22,9 +22,9 @@ classdef BlockIndentationEngine < handle
         end
 
         function indentedSource = performIndenting(obj, source)
-            strategy = obj.Configuration.specialRule('Indentation_Strategy').Value;
+            strategy = obj.Configuration.indentationStrategy();
             indent = obj.getIndentationString();
-            makeBlankLinesEmpty = obj.Configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
+            makeBlankLinesEmpty = obj.Configuration.trimBlankLinesDuringIndentation();
 
             containerDepth = 0;
             continuationLayerNext = 0;
@@ -66,10 +66,7 @@ classdef BlockIndentationEngine < handle
 
     methods (Access = private)
         function indent = getIndentationString(obj)
-            indentationCharacter = obj.Configuration.specialRule('IndentationCharacter').Value;
-            indentationCount = obj.Configuration.specialRule('IndentationCount').ValueAsDouble;
-            indent = MBeautifier.IndentationConfiguration.indentationString( ...
-                indentationCharacter, indentationCount);
+            indent = obj.Configuration.indentationString();
         end
 
         function [trimmedLine, line, words, isOldStyleFunctionCall] = analyzeLine(obj, rawLine)

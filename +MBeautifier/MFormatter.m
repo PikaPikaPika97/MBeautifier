@@ -28,8 +28,8 @@ classdef MFormatter < handle
 
             obj.Configuration = configuration;
 
-            obj.MatrixIndexingOperatorPadding = configuration.specialRule('MatrixIndexing_ArithmeticOperatorPadding').ValueAsDouble;
-            obj.CellArrayIndexingOperatorPadding = configuration.specialRule('CellArrayIndexing_ArithmeticOperatorPadding').ValueAsDouble;
+            obj.MatrixIndexingOperatorPadding = configuration.matrixIndexingOperatorPadding();
+            obj.CellArrayIndexingOperatorPadding = configuration.cellArrayIndexingOperatorPadding();
             obj.AutoAppendContinuationMarkers = configuration.autoAppendContinuationMarkers();
             obj.PreserveIndexExpressionSpacing = configuration.preserveIndexExpressionSpacing();
 
@@ -248,14 +248,14 @@ classdef MFormatter < handle
             options = struct();
             options.newLine = newLine;
             options.textArray = regexp(source, newLine, 'split');
-            options.maximalNewLines = obj.Configuration.specialRule('MaximalNewLines').ValueAsDouble;
-            options.sectionPrecedingNewlines = obj.Configuration.specialRule('SectionPrecedingNewlineCount').ValueAsDouble;
+            options.maximalNewLines = obj.Configuration.maximalNewLines();
+            options.sectionPrecedingNewlines = obj.Configuration.sectionPrecedingNewlineCount();
             options.formatSectionPrecedingNewlines = options.sectionPrecedingNewlines >= 0;
-            options.sectionTrailingNewlines = obj.Configuration.specialRule('SectionTrailingNewlineCount').ValueAsDouble;
+            options.sectionTrailingNewlines = obj.Configuration.sectionTrailingNewlineCount();
             options.formatSectionTrailingNewlines = options.sectionTrailingNewlines >= 0;
-            options.startingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
+            options.startingNewlines = obj.Configuration.startingNewlineCount();
             options.formatStartingNewlines = options.startingNewlines >= 0;
-            options.endingNewlines = obj.Configuration.specialRule('EndingNewlineCount').ValueAsDouble;
+            options.endingNewlines = obj.Configuration.endingNewlineCount();
             options.formatEndingNewlines = options.endingNewlines >= 0;
             options.contTokenStruct = MBeautifier.MFormatter.TokenStruct.ContinueToken;
             options.initialOutputCapacity = max(16, numel(options.textArray) * 4 + 8);
@@ -577,7 +577,7 @@ classdef MFormatter < handle
             % inserted to the original data
             [data, arrayMapCell] = obj.replaceContainer(data);
 
-            if obj.Configuration.specialRule('InlineContinousLines').ValueAsDouble
+            if obj.Configuration.inlineContinuousLines()
                 data = regexprep(data, MBeautifier.MFormatter.TokenStruct.ContinueToken.Token, '');
             end
 
@@ -808,9 +808,7 @@ classdef MFormatter < handle
         end
 
         function tf = shouldApplyInlineContinuousLineRules(obj)
-            tf = obj.Configuration.specialRule('InlineContinousLines').ValueAsDouble ~= 0 ...
-                || obj.Configuration.specialRule('InlineContinousLinesInMatrixes').ValueAsDouble ~= 0 ...
-                || obj.Configuration.specialRule('InlineContinousLinesInCurlyBracket').ValueAsDouble ~= 0;
+            tf = obj.Configuration.hasInlineContinuousLineRule();
         end
 
         function line = rebuildPreservedContinuousLine(~, contLineArray, actComment, newLine)
@@ -1210,8 +1208,8 @@ classdef MFormatter < handle
                         end
 
                         isInCurlyBracket = 0;
-                        inlineMatrix = obj.Configuration.specialRule('InlineContinousLinesInMatrixes').ValueAsDouble;
-                        inlineCurly = obj.Configuration.specialRule('InlineContinousLinesInCurlyBracket').ValueAsDouble;
+                        inlineMatrix = obj.Configuration.inlineContinuousLinesInMatrixes();
+                        inlineCurly = obj.Configuration.inlineContinuousLinesInCurlyBracket();
                         for elemInd = 1:numel(elementsCell) - 1
 
                             currElem = strtrim(elementsCell{elemInd});
@@ -1243,9 +1241,9 @@ classdef MFormatter < handle
                                 else
 
                                 end
-                                addCommas = obj.Configuration.specialRule('AddCommasToMatrices').ValueAsDouble;
+                                addCommas = obj.Configuration.addCommasToMatrices();
                             else
-                                addCommas = obj.Configuration.specialRule('AddCommasToCellArrays').ValueAsDouble;
+                                addCommas = obj.Configuration.addCommasToCellArrays();
                                 if obj.isContinueToken(currElem)
 
                                     if inlineCurly
