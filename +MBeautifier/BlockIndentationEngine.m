@@ -38,7 +38,8 @@ classdef BlockIndentationEngine < handle
                 layer = layerNext;
 
                 [lines{linect}, line, words, isOldStyleFunctionCall] = obj.analyzeLine(lines{linect});
-                continuationLayer = obj.continuationLayerForLine(lines{linect}, continuationLayerNext);
+                continuationLayer = obj.continuationLayerForLine( ...
+                    lines{linect}, continuationLayerNext, containerDepth);
 
                 if obj.shouldProcessLine(line, isOldStyleFunctionCall)
                     isScriptLocalFunction = obj.isScriptLocalFunctionStart(words, stack, hasTopLevelScriptCode);
@@ -231,9 +232,13 @@ classdef BlockIndentationEngine < handle
             functionModes(end) = [];
         end
 
-        function layer = continuationLayerForLine(obj, rawLine, continuationLayerNext)
-            leadingClosingDepth = min(continuationLayerNext, obj.leadingClosingContainerCount(rawLine));
+        function layer = continuationLayerForLine(obj, rawLine, continuationLayerNext, containerDepth)
+            leadingClosingCount = obj.leadingClosingContainerCount(rawLine);
+            leadingClosingDepth = min(continuationLayerNext, leadingClosingCount);
             layer = continuationLayerNext - leadingClosingDepth;
+            if continuationLayerNext > 0 && containerDepth > leadingClosingCount
+                layer = max(1, layer);
+            end
         end
 
         function [continuationLayerNext, containerDepth] = updateContinuationState( ...
@@ -244,14 +249,18 @@ classdef BlockIndentationEngine < handle
 
             if containerDepth == 0
                 if obj.endsWithContinuationToken(line) && ~obj.startsWithBlockOpeningKeyword(words)
-                    continuationLayerNext = continuationLayer + 1;
+                    continuationLayerNext = 1;
                 else
                     continuationLayerNext = 0;
                 end
             elseif depthDelta > 0 || previousContainerDepth == 0
                 continuationLayerNext = continuationLayer + 1;
             elseif depthDelta < 0
-                continuationLayerNext = continuationLayer;
+                if obj.endsWithOpenContainerContinuation(line)
+                    continuationLayerNext = continuationLayer + 1;
+                else
+                    continuationLayerNext = max(1, continuationLayer + depthDelta);
+                end
             end
         end
 
@@ -298,6 +307,13 @@ classdef BlockIndentationEngine < handle
             openingCount = sum(line == '(' | line == '[' | line == '{');
             closingCount = sum(line == ')' | line == ']' | line == '}');
             delta = openingCount - closingCount;
+        end
+
+        function tf = endsWithOpenContainerContinuation(obj, line)
+            lineWithoutContinuation = regexprep(strtrim(line), '\.\.\.$', '');
+            lineWithoutContinuation = strtrim(lineWithoutContinuation);
+            tf = obj.endsWithContinuationToken(line) && ~isempty(lineWithoutContinuation) && ...
+                any(lineWithoutContinuation(end) == '([{');
         end
 
         function tf = endsWithContinuationToken(~, line)
