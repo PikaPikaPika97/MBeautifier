@@ -69,6 +69,14 @@ classdef Configuration < handle
         function value = inlineCommentSpacingStrategy(obj)
             value = obj.specialRuleValueOr('InlineCommentSpacingStrategy', obj.legacyInlineCommentSpacingStrategy());
         end
+
+        function tf = autoAppendContinuationMarkers(obj)
+            tf = obj.specialRuleDoubleValueOr('AutoAppendContinuationMarkers', 0) ~= 0;
+        end
+
+        function tf = preserveIndexExpressionSpacing(obj)
+            tf = obj.specialRuleDoubleValueOr('PreserveIndexExpressionSpacing', 1) ~= 0;
+        end
     end
 
     methods (Static)
@@ -81,6 +89,14 @@ classdef Configuration < handle
         function value = specialRuleValueOr(obj, name, defaultValue)
             if obj.hasSpecialRule(name)
                 value = strtrim(obj.specialRule(name).Value);
+            else
+                value = defaultValue;
+            end
+        end
+
+        function value = specialRuleDoubleValueOr(obj, name, defaultValue)
+            if obj.hasSpecialRule(name)
+                value = obj.specialRule(name).ValueAsDouble;
             else
                 value = defaultValue;
             end

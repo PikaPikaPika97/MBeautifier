@@ -14,6 +14,8 @@ classdef MFormatter < handle
 
         MatrixIndexingOperatorPadding;
         CellArrayIndexingOperatorPadding;
+        AutoAppendContinuationMarkers;
+        PreserveIndexExpressionSpacing;
     end
 
     properties (Access = private, Constant)
@@ -28,6 +30,8 @@ classdef MFormatter < handle
 
             obj.MatrixIndexingOperatorPadding = configuration.specialRule('MatrixIndexing_ArithmeticOperatorPadding').ValueAsDouble;
             obj.CellArrayIndexingOperatorPadding = configuration.specialRule('CellArrayIndexing_ArithmeticOperatorPadding').ValueAsDouble;
+            obj.AutoAppendContinuationMarkers = configuration.autoAppendContinuationMarkers();
+            obj.PreserveIndexExpressionSpacing = configuration.preserveIndexExpressionSpacing();
 
             % Init run-time members
             obj.StringMemory = [];
@@ -347,13 +351,13 @@ classdef MFormatter < handle
 
             if isempty(trimmedCode)
                 if isequal(splittingPos, 1) && state.isInContinousLine
-                    state = obj.appendContinuousLine(state, actCode, actComment);
+                    state = obj.appendContinuousLine(state, actCode, actComment, currentContext);
                     return;
                 end
                 actCodeFinal = '';
             else
                 [state, actCode, trimmedCode, wasDeferred] = ...
-                    obj.prepareLineForFormatting(actCode, actComment, trimmedCode, splittingPos, state);
+                    obj.prepareLineForFormatting(actCode, actComment, trimmedCode, splittingPos, state, currentContext);
                 if wasDeferred
                     return;
                 end
@@ -377,7 +381,7 @@ classdef MFormatter < handle
             state.isInArgumentsBlock = obj.updateArgumentsBlockState(trimmedCode, state.isInArgumentsBlock);
         end
 
-        function [state, actCode, trimmedCode, wasDeferred] = prepareLineForFormatting(obj, actCode, actComment, trimmedCode, splittingPos, state)
+        function [state, actCode, trimmedCode, wasDeferred] = prepareLineForFormatting(obj, actCode, actComment, trimmedCode, splittingPos, state, currentContext)
             wasDeferred = false;
 
             if obj.shouldPreserveContextAwareSourceLine(trimmedCode)
@@ -391,13 +395,13 @@ classdef MFormatter < handle
 
             if obj.shouldAccumulateContinuousLine(trimmedCode, splittingPos, state.isInContinousLine)
                 state.isInContinousLine = true;
-                state = obj.appendContinuousLine(state, actCode, actComment);
+                state = obj.appendContinuousLine(state, actCode, actComment, currentContext);
                 wasDeferred = true;
                 return;
             end
 
             if state.isInContinousLine
-                state = obj.appendContinuousLine(state, actCode, actComment);
+                state = obj.appendContinuousLine(state, actCode, actComment, currentContext);
             end
         end
 
@@ -406,9 +410,10 @@ classdef MFormatter < handle
                 actCode, actComment, obj.Configuration.inlineCommentSpacingStrategy());
         end
 
-        function actCode = appendContinuationMarkerIfNeeded(~, actCode, trimmedCode, containerDepth)
+        function actCode = appendContinuationMarkerIfNeeded(obj, actCode, trimmedCode, containerDepth)
             % Auto append "..." to the lines of continuous containers.
-            if ~containerDepth || (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
+            if ~obj.AutoAppendContinuationMarkers || ~containerDepth ...
+                    || (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
                 return;
             end
 
@@ -424,10 +429,11 @@ classdef MFormatter < handle
                 || (isequal(splittingPos, 1) && isInContinousLine);
         end
 
-        function state = appendContinuousLine(~, state, actCode, actComment)
+        function state = appendContinuousLine(~, state, actCode, actComment, currentContext)
             state.continuousLineCount = state.continuousLineCount + 1;
             state.continuousLines{state.continuousLineCount, 1} = actCode;
             state.continuousLines{state.continuousLineCount, 2} = actComment;
+            state.continuousLines{state.continuousLineCount, 3} = currentContext;
         end
 
         function actCodeFinal = formatCodeByContext(obj, actCode, currentContext)
@@ -768,6 +774,11 @@ classdef MFormatter < handle
         end
 
         function line = formatContinuousLine(obj, contLineArray, actComment, contTokenStruct, newLine)
+            if obj.shouldPreserveDeclarationContinuation(contLineArray)
+                line = obj.rebuildPreservedContinuousLine(contLineArray, actComment, newLine);
+                return;
+            end
+
             lineCount = size(contLineArray, 1);
             lineParts = cell(1, lineCount);
             for iLine = 1:lineCount - 1
@@ -789,6 +800,24 @@ classdef MFormatter < handle
             line = obj.rebuildContinuousLine(contLineArray, actComment, actCodeFinal, startIndices, endIndices, contTokenStruct, newLine);
         end
 
+        function tf = shouldPreserveDeclarationContinuation(obj, contLineArray)
+            tf = strcmpi(obj.Configuration.declarationSpacingStyle(), 'Preserve') ...
+                && size(contLineArray, 2) >= 3 ...
+                && strcmp(contLineArray{1, 3}, 'argumentsDeclaration');
+        end
+
+        function line = rebuildPreservedContinuousLine(~, contLineArray, actComment, newLine)
+            lineCount = size(contLineArray, 1);
+            lineParts = cell(1, lineCount);
+            for iLine = 1:lineCount - 1
+                lineParts{iLine} = [strtrim(contLineArray{iLine, 1}), ...
+                    contLineArray{iLine, 2}, newLine];
+            end
+
+            lineParts{lineCount} = [strtrim(contLineArray{end, 1}), actComment];
+            line = [lineParts{:}];
+        end
+
         function line = buildInlinedContinuousLine(obj, contLineArray, actCodeFinal, newLine)
             fullComment = obj.buildContinousLineCommentAsPrecedingLines(contLineArray);
             if isempty(fullComment)
@@ -802,7 +831,7 @@ classdef MFormatter < handle
                 if ~numel(regexp(lastComment, '^\s*%'))
                     lastComment = ['% ', lastComment];
                 end
-                line = [line, ' ', lastComment];
+                line = obj.joinCodeAndInlineComment(line, lastComment);
             end
         end
 
@@ -832,8 +861,19 @@ classdef MFormatter < handle
                 end
             end
 
-            lineParts{linePartCount+1} = [actCodeFinal(lastEndIndex+1:end), ' ', actComment];
+            lineParts{linePartCount+1} = obj.joinCodeAndInlineComment( ...
+                actCodeFinal(lastEndIndex+1:end), actComment);
             line = [lineParts{1:linePartCount+1}];
+        end
+
+        function line = joinCodeAndInlineComment(obj, code, comment)
+            if isempty(strtrim(comment))
+                line = code;
+            elseif obj.shouldPreserveInlineCommentSpacing() || obj.IsInBlockComment
+                line = [code, comment];
+            else
+                line = [code, ' ', strtrim(comment)];
+            end
         end
 
         function tf = isLikelyFunctionCallContainer(~, data, openingIndex)
@@ -1133,11 +1173,14 @@ classdef MFormatter < handle
                 end
 
                 str = data(containerBorderIndexes{indexes(1), 1}:containerBorderIndexes{indexes(2), 1});
+                originalStr = str;
                 str = regexprep(str, '\s+', ' ');
                 str = regexprep(str, [openingBracket, '\s+'], openingBracket);
                 str = regexprep(str, ['\s+', closingBracket], closingBracket);
 
-                if ~strcmp(openingBracket, '(')
+                if doIndexing && obj.PreserveIndexExpressionSpacing
+                    strNew = strtrim(originalStr);
+                elseif ~strcmp(openingBracket, '(')
                     if doIndexing
                         strNew = strtrim(str);
                         strNew = [strNew(1), strtrim(obj.performFormattingSingleLine(strNew(2:end-1), doIndexing, contType, true)), strNew(end)];
