@@ -44,6 +44,71 @@ classdef SourceLine
                 analysis.Comment = strtrim(line(splittingPosition:end));
             end
         end
+
+        function line = codeWithoutStringsAndComments(rawLine)
+            output = blanks(numel(rawLine));
+            outputIndex = 0;
+            stringDelimiter = '';
+            previousNonspace = '';
+            index = 1;
+
+            while index <= numel(rawLine)
+                currentCharacter = rawLine(index);
+
+                if isempty(stringDelimiter)
+                    if currentCharacter == '%'
+                        break;
+                    end
+
+                    if currentCharacter == ''''
+                        if MBeautifier.LexicalRules.isTransposeQuote(previousNonspace)
+                            outputIndex = outputIndex + 1;
+                            output(outputIndex) = currentCharacter;
+                        else
+                            stringDelimiter = currentCharacter;
+                        end
+                    elseif currentCharacter == '"'
+                        stringDelimiter = currentCharacter;
+                    else
+                        outputIndex = outputIndex + 1;
+                        output(outputIndex) = currentCharacter;
+                    end
+                elseif currentCharacter == stringDelimiter
+                    if index < numel(rawLine) && rawLine(index + 1) == stringDelimiter
+                        index = index + 1;
+                    else
+                        stringDelimiter = '';
+                    end
+                end
+
+                if isempty(stringDelimiter) && ~isspace(currentCharacter)
+                    previousNonspace = currentCharacter;
+                end
+                index = index + 1;
+            end
+
+            line = output(1:outputIndex);
+        end
+
+        function delta = containerDepthDelta(line)
+            codeLine = MBeautifier.SourceLine.codeWithoutStringsAndComments(line);
+            openingCount = sum(codeLine == '(' | codeLine == '[' | codeLine == '{');
+            closingCount = sum(codeLine == ')' | codeLine == ']' | codeLine == '}');
+            delta = openingCount - closingCount;
+        end
+
+        function count = leadingClosingContainerCount(line)
+            codeLine = strtrim(line);
+            count = 0;
+            while count < numel(codeLine) && any(codeLine(count + 1) == ')]}')
+                count = count + 1;
+            end
+        end
+
+        function tf = endsWithContinuationToken(line)
+            codeLine = strtrim(MBeautifier.SourceLine.codeWithoutStringsAndComments(line));
+            tf = ~isempty(regexp(codeLine, '\.\.\.$', 'once'));
+        end
     end
 
     methods (Static, Access = private)

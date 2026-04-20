@@ -66,5 +66,35 @@ classdef TestSourceLineModel < matlab.unittest.TestCase
             testCase.verifyEqual(analysis.Code, '');
             testCase.verifyEqual(analysis.Comment, '%% Section');
         end
+
+        function testCodeWithoutStringsAndCommentsPreservesTranspose(testCase)
+            codeLine = MBeautifier.SourceLine.codeWithoutStringsAndComments( ...
+                'y = a'' + "not % comment" + ''also % text''; % comment');
+
+            testCase.verifyNotEmpty(strfind(codeLine, 'a'''));
+            testCase.verifyEmpty(strfind(codeLine, 'not'));
+            testCase.verifyEmpty(strfind(codeLine, 'also'));
+            testCase.verifyEmpty(strfind(codeLine, '% comment'));
+        end
+
+        function testContainerDepthDeltaIgnoresStringsAndComments(testCase)
+            testCase.verifyEqual( ...
+                MBeautifier.SourceLine.containerDepthDelta('value = "[" + ''{''; % ({['), 0);
+            testCase.verifyEqual( ...
+                MBeautifier.SourceLine.containerDepthDelta('value = outer([1, 2'), 2);
+        end
+
+        function testLeadingClosingContainerCountIgnoresStringContents(testCase)
+            testCase.verifyEqual( ...
+                MBeautifier.SourceLine.leadingClosingContainerCount('  ]) + "%]"'), 2);
+            testCase.verifyEqual( ...
+                MBeautifier.SourceLine.leadingClosingContainerCount('  "text")'), 0);
+        end
+
+        function testContinuationTokenDetectionUsesCodeView(testCase)
+            testCase.verifyTrue(MBeautifier.SourceLine.endsWithContinuationToken('x = 1 + ... % comment'));
+            testCase.verifyFalse(MBeautifier.SourceLine.endsWithContinuationToken('s = "..."'));
+            testCase.verifyFalse(MBeautifier.SourceLine.endsWithContinuationToken('% ...'));
+        end
     end
 end

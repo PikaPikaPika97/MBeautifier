@@ -74,56 +74,11 @@ classdef BlockIndentationEngine < handle
 
         function [trimmedLine, line, words, isOldStyleFunctionCall] = analyzeLine(obj, rawLine)
             trimmedLine = strtrim(rawLine);
-            line = obj.removeStringsAndComments(trimmedLine);
+            line = MBeautifier.SourceLine.codeWithoutStringsAndComments(trimmedLine);
 
             pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
             words = regexp(line, pattern, 'split');
             isOldStyleFunctionCall = obj.isOldStyleFunctionCall(line);
-        end
-
-        function line = removeStringsAndComments(~, rawLine)
-            output = blanks(numel(rawLine));
-            outputIndex = 0;
-            stringDelimiter = '';
-            previousNonspace = '';
-            index = 1;
-
-            while index <= numel(rawLine)
-                currentCharacter = rawLine(index);
-
-                if isempty(stringDelimiter)
-                    if currentCharacter == '%'
-                        break;
-                    end
-
-                    if currentCharacter == ''''
-                        if MBeautifier.LexicalRules.isTransposeQuote(previousNonspace)
-                            outputIndex = outputIndex + 1;
-                            output(outputIndex) = currentCharacter;
-                        else
-                            stringDelimiter = currentCharacter;
-                        end
-                    elseif currentCharacter == '"'
-                        stringDelimiter = currentCharacter;
-                    else
-                        outputIndex = outputIndex + 1;
-                        output(outputIndex) = currentCharacter;
-                    end
-                elseif currentCharacter == stringDelimiter
-                    if index < numel(rawLine) && rawLine(index + 1) == stringDelimiter
-                        index = index + 1;
-                    else
-                        stringDelimiter = '';
-                    end
-                end
-
-                if isempty(stringDelimiter) && ~isspace(currentCharacter)
-                    previousNonspace = currentCharacter;
-                end
-                index = index + 1;
-            end
-
-            line = output(1:outputIndex);
         end
 
         function tf = isOldStyleFunctionCall(~, line)
@@ -232,8 +187,8 @@ classdef BlockIndentationEngine < handle
             functionModes(end) = [];
         end
 
-        function layer = continuationLayerForLine(obj, rawLine, continuationLayerNext, containerDepth)
-            leadingClosingCount = obj.leadingClosingContainerCount(rawLine);
+        function layer = continuationLayerForLine(~, rawLine, continuationLayerNext, containerDepth)
+            leadingClosingCount = MBeautifier.SourceLine.leadingClosingContainerCount(rawLine);
             leadingClosingDepth = min(continuationLayerNext, leadingClosingCount);
             layer = continuationLayerNext - leadingClosingDepth;
             if continuationLayerNext > 0 && containerDepth > leadingClosingCount
@@ -244,11 +199,11 @@ classdef BlockIndentationEngine < handle
         function [continuationLayerNext, containerDepth] = updateContinuationState( ...
                 obj, line, words, continuationLayer, continuationLayerNext, containerDepth)
             previousContainerDepth = containerDepth;
-            depthDelta = obj.containerDepthDelta(line);
+            depthDelta = MBeautifier.SourceLine.containerDepthDelta(line);
             containerDepth = max(0, containerDepth + depthDelta);
 
             if containerDepth == 0
-                if obj.endsWithContinuationToken(line) && ~obj.startsWithBlockOpeningKeyword(words)
+                if MBeautifier.SourceLine.endsWithContinuationToken(line) && ~obj.startsWithBlockOpeningKeyword(words)
                     continuationLayerNext = 1;
                 else
                     continuationLayerNext = 0;
@@ -295,29 +250,11 @@ classdef BlockIndentationEngine < handle
             end
         end
 
-        function count = leadingClosingContainerCount(~, line)
-            trimmedLine = strtrim(line);
-            count = 0;
-            while count < numel(trimmedLine) && any(trimmedLine(count + 1) == ')]}')
-                count = count + 1;
-            end
-        end
-
-        function delta = containerDepthDelta(~, line)
-            openingCount = sum(line == '(' | line == '[' | line == '{');
-            closingCount = sum(line == ')' | line == ']' | line == '}');
-            delta = openingCount - closingCount;
-        end
-
-        function tf = endsWithOpenContainerContinuation(obj, line)
+        function tf = endsWithOpenContainerContinuation(~, line)
             lineWithoutContinuation = regexprep(strtrim(line), '\.\.\.$', '');
             lineWithoutContinuation = strtrim(lineWithoutContinuation);
-            tf = obj.endsWithContinuationToken(line) && ~isempty(lineWithoutContinuation) && ...
+            tf = MBeautifier.SourceLine.endsWithContinuationToken(line) && ~isempty(lineWithoutContinuation) && ...
                 any(lineWithoutContinuation(end) == '([{');
-        end
-
-        function tf = endsWithContinuationToken(~, line)
-            tf = ~isempty(regexp(strtrim(line), '\.\.\.$', 'once'));
         end
 
         function indentedLine = applyIndentation(~, line, layer, indent, makeBlankLinesEmpty)
