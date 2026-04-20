@@ -70,12 +70,81 @@ classdef Configuration < handle
             value = obj.specialRuleValueOr('InlineCommentSpacingStrategy', obj.legacyInlineCommentSpacingStrategy());
         end
 
+        function value = maximalNewLines(obj)
+            value = obj.specialRuleDoubleValueOr('MaximalNewLines', 2);
+        end
+
+        function value = sectionPrecedingNewlineCount(obj)
+            value = obj.specialRuleDoubleValueOr('SectionPrecedingNewlineCount', -1);
+        end
+
+        function value = sectionTrailingNewlineCount(obj)
+            value = obj.specialRuleDoubleValueOr('SectionTrailingNewlineCount', -1);
+        end
+
+        function value = startingNewlineCount(obj)
+            value = obj.specialRuleDoubleValueOr('StartingNewlineCount', 0);
+        end
+
+        function value = endingNewlineCount(obj)
+            value = obj.specialRuleDoubleValueOr('EndingNewlineCount', 1);
+        end
+
+        function tf = inlineContinuousLines(obj)
+            tf = obj.specialRuleDoubleValueOr('InlineContinousLines', 0) ~= 0;
+        end
+
+        function tf = inlineContinuousLinesInMatrixes(obj)
+            tf = obj.specialRuleDoubleValueOr('InlineContinousLinesInMatrixes', 0) ~= 0;
+        end
+
+        function tf = inlineContinuousLinesInCurlyBracket(obj)
+            tf = obj.specialRuleDoubleValueOr('InlineContinousLinesInCurlyBracket', 0) ~= 0;
+        end
+
+        function tf = hasInlineContinuousLineRule(obj)
+            tf = obj.inlineContinuousLines() ...
+                || obj.inlineContinuousLinesInMatrixes() ...
+                || obj.inlineContinuousLinesInCurlyBracket();
+        end
+
         function tf = autoAppendContinuationMarkers(obj)
             tf = obj.specialRuleDoubleValueOr('AutoAppendContinuationMarkers', 0) ~= 0;
         end
 
         function tf = preserveIndexExpressionSpacing(obj)
             tf = obj.specialRuleDoubleValueOr('PreserveIndexExpressionSpacing', 1) ~= 0;
+        end
+
+        function tf = addCommasToMatrices(obj)
+            tf = obj.specialRuleDoubleValueOr('AddCommasToMatrices', 1) ~= 0;
+        end
+
+        function tf = addCommasToCellArrays(obj)
+            tf = obj.specialRuleDoubleValueOr('AddCommasToCellArrays', 1) ~= 0;
+        end
+
+        function tf = matrixIndexingOperatorPadding(obj)
+            tf = obj.specialRuleDoubleValueOr('MatrixIndexing_ArithmeticOperatorPadding', 0) ~= 0;
+        end
+
+        function tf = cellArrayIndexingOperatorPadding(obj)
+            tf = obj.specialRuleDoubleValueOr('CellArrayIndexing_ArithmeticOperatorPadding', 0) ~= 0;
+        end
+
+        function value = indentationStrategy(obj)
+            value = obj.specialRuleValueOr('Indentation_Strategy', 'NestedFunctions');
+        end
+
+        function tf = trimBlankLinesDuringIndentation(obj)
+            tf = obj.specialRuleDoubleValueOr('Indentation_TrimBlankLines', 1) ~= 0;
+        end
+
+        function indent = indentationString(obj)
+            indentationCharacter = obj.specialRuleValueOr('IndentationCharacter', 'white-space');
+            indentationCount = obj.specialRuleDoubleValueOr('IndentationCount', 4);
+            indent = MBeautifier.IndentationConfiguration.indentationString( ...
+                indentationCharacter, indentationCount);
         end
 
         function tf = indentScriptLocalFunctionBodies(obj)

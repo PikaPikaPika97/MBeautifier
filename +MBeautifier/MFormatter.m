@@ -28,8 +28,8 @@ classdef MFormatter < handle
 
             obj.Configuration = configuration;
 
-            obj.MatrixIndexingOperatorPadding = configuration.specialRule('MatrixIndexing_ArithmeticOperatorPadding').ValueAsDouble;
-            obj.CellArrayIndexingOperatorPadding = configuration.specialRule('CellArrayIndexing_ArithmeticOperatorPadding').ValueAsDouble;
+            obj.MatrixIndexingOperatorPadding = configuration.matrixIndexingOperatorPadding();
+            obj.CellArrayIndexingOperatorPadding = configuration.cellArrayIndexingOperatorPadding();
             obj.AutoAppendContinuationMarkers = configuration.autoAppendContinuationMarkers();
             obj.PreserveIndexExpressionSpacing = configuration.preserveIndexExpressionSpacing();
 
@@ -248,14 +248,14 @@ classdef MFormatter < handle
             options = struct();
             options.newLine = newLine;
             options.textArray = regexp(source, newLine, 'split');
-            options.maximalNewLines = obj.Configuration.specialRule('MaximalNewLines').ValueAsDouble;
-            options.sectionPrecedingNewlines = obj.Configuration.specialRule('SectionPrecedingNewlineCount').ValueAsDouble;
+            options.maximalNewLines = obj.Configuration.maximalNewLines();
+            options.sectionPrecedingNewlines = obj.Configuration.sectionPrecedingNewlineCount();
             options.formatSectionPrecedingNewlines = options.sectionPrecedingNewlines >= 0;
-            options.sectionTrailingNewlines = obj.Configuration.specialRule('SectionTrailingNewlineCount').ValueAsDouble;
+            options.sectionTrailingNewlines = obj.Configuration.sectionTrailingNewlineCount();
             options.formatSectionTrailingNewlines = options.sectionTrailingNewlines >= 0;
-            options.startingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
+            options.startingNewlines = obj.Configuration.startingNewlineCount();
             options.formatStartingNewlines = options.startingNewlines >= 0;
-            options.endingNewlines = obj.Configuration.specialRule('EndingNewlineCount').ValueAsDouble;
+            options.endingNewlines = obj.Configuration.endingNewlineCount();
             options.formatEndingNewlines = options.endingNewlines >= 0;
             options.contTokenStruct = MBeautifier.MFormatter.TokenStruct.ContinueToken;
             options.initialOutputCapacity = max(16, numel(options.textArray) * 4 + 8);
@@ -413,7 +413,7 @@ classdef MFormatter < handle
         function actCode = appendContinuationMarkerIfNeeded(obj, actCode, trimmedCode, containerDepth)
             % Auto append "..." to the lines of continuous containers.
             if ~obj.AutoAppendContinuationMarkers || ~containerDepth ...
-                    || (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...'))
+                    || MBeautifier.SourceLine.endsWithContinuationToken(trimmedCode)
                 return;
             end
 
@@ -425,7 +425,7 @@ classdef MFormatter < handle
         end
 
         function tf = shouldAccumulateContinuousLine(~, trimmedCode, splittingPos, isInContinousLine)
-            tf = (numel(trimmedCode) >= 3 && strcmp(trimmedCode(end-2:end), '...')) ...
+            tf = MBeautifier.SourceLine.endsWithContinuationToken(trimmedCode) ...
                 || (isequal(splittingPos, 1) && isInContinousLine);
         end
 
@@ -577,7 +577,7 @@ classdef MFormatter < handle
             % inserted to the original data
             [data, arrayMapCell] = obj.replaceContainer(data);
 
-            if obj.Configuration.specialRule('InlineContinousLines').ValueAsDouble
+            if obj.Configuration.inlineContinuousLines()
                 data = regexprep(data, MBeautifier.MFormatter.TokenStruct.ContinueToken.Token, '');
             end
 
@@ -808,9 +808,7 @@ classdef MFormatter < handle
         end
 
         function tf = shouldApplyInlineContinuousLineRules(obj)
-            tf = obj.Configuration.specialRule('InlineContinousLines').ValueAsDouble ~= 0 ...
-                || obj.Configuration.specialRule('InlineContinousLinesInMatrixes').ValueAsDouble ~= 0 ...
-                || obj.Configuration.specialRule('InlineContinousLinesInCurlyBracket').ValueAsDouble ~= 0;
+            tf = obj.Configuration.hasInlineContinuousLineRule();
         end
 
         function line = rebuildPreservedContinuousLine(~, contLineArray, actComment, newLine)
@@ -1063,16 +1061,10 @@ classdef MFormatter < handle
             end
         end
 
-        function ret = calculateContainerDepthDeltaOfLine(obj, code)
+        function ret = calculateContainerDepthDeltaOfLine(~, code)
             % Calculates the delta of container depth in a single code line.
 
-            % Pre-check for opening and closing brackets: the final delta has to be calculated after the transponations and the
-            % strings are replaced, which are time consuming actions
-            ret = 0;
-            if numel(regexp(code, '{|[')) || numel(regexp(code, '}|]'))
-                actCodeTemp = obj.replaceStrings(obj.replaceTransponations(code));
-                ret = numel(regexp(actCodeTemp, '{|[')) - numel(regexp(actCodeTemp, '}|]'));
-            end
+            ret = MBeautifier.SourceLine.containerDepthDelta(code, '[{', ']}');
         end
 
         function [containerBorderIndexes, maxDepth] = calculateContainerDepths(~, data)
@@ -1216,8 +1208,8 @@ classdef MFormatter < handle
                         end
 
                         isInCurlyBracket = 0;
-                        inlineMatrix = obj.Configuration.specialRule('InlineContinousLinesInMatrixes').ValueAsDouble;
-                        inlineCurly = obj.Configuration.specialRule('InlineContinousLinesInCurlyBracket').ValueAsDouble;
+                        inlineMatrix = obj.Configuration.inlineContinuousLinesInMatrixes();
+                        inlineCurly = obj.Configuration.inlineContinuousLinesInCurlyBracket();
                         for elemInd = 1:numel(elementsCell) - 1
 
                             currElem = strtrim(elementsCell{elemInd});
@@ -1249,9 +1241,9 @@ classdef MFormatter < handle
                                 else
 
                                 end
-                                addCommas = obj.Configuration.specialRule('AddCommasToMatrices').ValueAsDouble;
+                                addCommas = obj.Configuration.addCommasToMatrices();
                             else
-                                addCommas = obj.Configuration.specialRule('AddCommasToCellArrays').ValueAsDouble;
+                                addCommas = obj.Configuration.addCommasToCellArrays();
                                 if obj.isContinueToken(currElem)
 
                                     if inlineCurly
