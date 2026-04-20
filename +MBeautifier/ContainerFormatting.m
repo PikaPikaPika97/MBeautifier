@@ -12,19 +12,10 @@ classdef ContainerFormatting
                 return
             end
 
+            context = MBeautifier.ContainerFormatting.createContext( ...
+                configuration, tokenStruct, preserveIndexExpressionSpacing, formatElement);
             data = regexprep(data, '\s+;', ';');
-
-            % TODO: Bind obj.AllOperators in in a filtered manner
-            nonUnaryOperatorArray = {'&', '&&', '|', '||', '/', './', '\', '.\', '*', '.*', ':', '^', '.^', '<', '>', '==', '>=', '<=', '~='};
-            nonUnaryOperatorArray1 = nonUnaryOperatorArray(cellfun(@numel, nonUnaryOperatorArray) == 1);
-            nonUnaryOperatorArray2 = nonUnaryOperatorArray(cellfun(@numel, nonUnaryOperatorArray) == 2);
-            operatorArray = [nonUnaryOperatorArray(:)', {'+'}, {'-'}, {'~'}];
-            contTokenStructMatrix = tokenStruct.ContinueMatrixToken;
-            contTokenStructCurly = tokenStruct.ContinueCurlyToken;
-            commaToken = configuration.operatorPaddingRule('Comma').Token;
-
             [containerBorderIndexes, maxDepth] = MBeautifier.ContainerScanner.calculateDepths(data);
-
             id = 0;
 
             while maxDepth > 0
@@ -32,263 +23,17 @@ classdef ContainerFormatting
                     break;
                 end
 
-                indexes = find([containerBorderIndexes{:, 2}] == maxDepth, 2);
-
-                if ~numel(indexes) || mod(numel(indexes), 2) ~= 0
-                    maxDepth = maxDepth - 1;
+                [indexes, maxDepth, foundPair] = ...
+                    MBeautifier.ContainerFormatting.selectDeepestContainerPair(containerBorderIndexes, maxDepth);
+                if ~foundPair
                     continue;
                 end
 
-                openingBracket = data(containerBorderIndexes{indexes(1), 1});
-                closingBracket = data(containerBorderIndexes{indexes(2), 1});
-
-                %% Calculate container indexing
-
-                % Container indexing is like:
-                %   - "myArray{2}" but NOT "myArray {2}"
-                %   - "myMatrix(4)" or "myMatrix (4)"
-                %
-                % Exceptions:
-                %   - NOT after keywords: while(true)
-                %   - "myMatrix (4)" is not working inside other containers, like: "[myArray (4)]" must be translated as "[myArray, (4)]"
-
-                % Determine if whitespace can be a delimiter in this context
-                isEmbeddedContainer = indexes(1) > 1;
-
-                if isEmbeddedContainer && ...
-                        (data(containerBorderIndexes{indexes(1)-1, 1}) == '[' ...
-                        || data(containerBorderIndexes{indexes(1)-1, 1}) == '{')
-                    isWhitespaceDelimiter = true;
-                    contRegex = ['[a-zA-Z0-9_][', openingBracket, ']$'];
-                else
-                    isWhitespaceDelimiter = false;
-                    contRegex = ['[a-zA-Z0-9_]\s*[', openingBracket, ']$'];
-                end
-
-                isContainerIndexing = numel(regexp(data(1:containerBorderIndexes{indexes(1), 1}), contRegex));
-                preceedingKeyWord = false;
-                if isContainerIndexing
-                    keywords = iskeyword();
-                    prevStr = strtrim(data(1:containerBorderIndexes{indexes(1), 1}-1));
-
-                    if numel(prevStr) >= 2
-                        for i = 1:numel(keywords)
-                            if numel(regexp(prevStr, ['(\s|^)', keywords{i}, '$']))
-                                isContainerIndexing = false;
-                                preceedingKeyWord = true;
-                                break;
-                            end
-                        end
-                    end
-                end
-
-                if isContainerIndexing && strcmp(openingBracket, '(') ...
-                        && MBeautifier.ContainerFormatting.isLikelyFunctionCallContainer( ...
-                        data, containerBorderIndexes{indexes(1), 1})
-                    isContainerIndexing = false;
-                end
-
-                %%
-
-                doIndexing = isContainerIndexing;
-                contType = '';
-                if doIndexing
-                    if strcmp(openingBracket, '(')
-                        doIndexing = true;
-                        contType = 'matrix';
-                    elseif strcmp(openingBracket, '{')
-                        doIndexing = true;
-                        contType = 'cell';
-                    else
-                        doIndexing = false;
-                    end
-                end
-
-                str = data(containerBorderIndexes{indexes(1), 1}:containerBorderIndexes{indexes(2), 1});
-                originalStr = str;
-                str = regexprep(str, '\s+', ' ');
-                str = regexprep(str, [openingBracket, '\s+'], openingBracket);
-                str = regexprep(str, ['\s+', closingBracket], closingBracket);
-
-                if doIndexing && preserveIndexExpressionSpacing
-                    strNew = strtrim(originalStr);
-                elseif ~strcmp(openingBracket, '(')
-                    if doIndexing
-                        strNew = strtrim(str);
-                        strNew = [strNew(1), strtrim(formatElement(strNew(2:end-1), doIndexing, contType, true)), strNew(end)];
-                    else
-                        elementsCell = regexp(str, ' ', 'split');
-
-                        firstElem = strtrim(elementsCell{1});
-                        lastElem = strtrim(elementsCell{end});
-
-                        if isscalar(elementsCell)
-                            elementsCell{1} = firstElem(2:end-1);
-                        else
-                            elementsCell{1} = firstElem(2:end);
-                            elementsCell{end} = lastElem(1:end-1);
-                        end
-
-                        for iElem = 1:numel(elementsCell)
-                            elem = strtrim(elementsCell{iElem});
-                            if numel(elem) && strcmp(elem(1), ',')
-                                elem = elem(2:end);
-                                if iElem > 1
-                                    elementsCell{iElem-1} = [elementsCell{iElem-1}, ','];
-                                end
-                            end
-                            elementsCell{iElem} = elem;
-                        end
-
-                        isInCurlyBracket = 0;
-                        inlineMatrix = configuration.inlineContinuousLinesInMatrixes();
-                        inlineCurly = configuration.inlineContinuousLinesInCurlyBracket();
-                        for elemInd = 1:numel(elementsCell) - 1
-
-                            currElem = strtrim(elementsCell{elemInd});
-                            nextElem = strtrim(elementsCell{elemInd+1});
-
-                            if ~numel(currElem)
-                                continue;
-                            end
-
-                            isInCurlyBracket = isInCurlyBracket || numel(strfind(currElem, openingBracket));
-                            isInCurlyBracket = isInCurlyBracket && ~numel(strfind(currElem, closingBracket));
-
-                            currElemStripped = regexprep(currElem, ['[', openingBracket, closingBracket, ']'], '');
-                            nextElemStripped = regexprep(nextElem, ['[', openingBracket, closingBracket, ']'], '');
-
-                            if MBeautifier.ContinuationFormatting.isContinueToken(nextElemStripped, tokenStruct) ...
-                                    && numel(elementsCell) > elemInd + 1
-                                nextElem = strtrim(elementsCell{elemInd+2});
-                                nextElemStripped = regexprep(nextElem, ['[', openingBracket, closingBracket, ']'], '');
-                            end
-
-                            if strcmp(openingBracket, '[')
-                                if MBeautifier.ContinuationFormatting.isContinueToken(currElem, tokenStruct)
-                                    if inlineMatrix
-                                        elementsCell{elemInd} = '';
-                                        continue;
-                                    else
-                                        currElem = contTokenStructMatrix.Token;
-                                    end
-                                else
-
-                                end
-                                addCommas = configuration.addCommasToMatrices();
-                            else
-                                addCommas = configuration.addCommasToCellArrays();
-                                if MBeautifier.ContinuationFormatting.isContinueToken(currElem, tokenStruct)
-
-                                    if inlineCurly
-                                        elementsCell{elemInd} = '';
-                                        continue;
-                                    else
-                                        currElem = contTokenStructCurly.Token;
-                                    end
-                                end
-                            end
-
-
-                            % Handle space between unary operator and operand
-                            % Detect if there is a potential unary operator
-                            % and determine if it is the beginning of an
-                            % expression
-                            lastChar = currElem(end);
-                            if lastChar == '-' || lastChar == '+' || lastChar == '~'
-                                prevChar = [];
-                                if numel(currElem) > 1
-                                    prevChar = currElem(end-1);
-                                elseif elemInd > 1
-                                    prevElems = strtrim(elementsCell(1:elemInd-1));
-                                    prevElems = prevElems(~cellfun(@isempty, prevElems));
-                                    prevElem = prevElems{end};
-                                    if numel(prevElem) >= numel(commaToken) && ...
-                                            strcmp(prevElem(end-numel(commaToken)+1:end), commaToken)
-                                        prevChar = ',';
-                                    else
-                                        prevChar = prevElem(end);
-                                    end
-                                end
-                                if isempty(prevChar) || prevChar == ','
-                                    currElem = horzcat(currElem, nextElem); %#ok<AGROW>
-                                    currElemStripped = regexprep(currElem, ['[', openingBracket, closingBracket, ']'], '');
-                                    elementsCell{elemInd+1} = '';
-                                    if numel(elementsCell) > elemInd + 1
-                                        nextElem = strtrim(elementsCell{elemInd+2});
-                                        nextElemStripped = regexprep(nextElem, ['[', openingBracket, closingBracket, ']'], '');
-                                    else
-                                        elementsCell{elemInd} = currElem;
-                                        break
-                                    end
-                                end
-                            end
-
-                            currElem = strtrim(formatElement(currElem, doIndexing, contType, true));
-                            numNext = numel(nextElemStripped);
-
-                            if ~addCommas || ...
-                                    isempty(currElem) || ...
-                                    strcmp(currElem(end), ',') || ...
-                                    strcmp(currElem(end), ';') || ...
-                                    isInCurlyBracket || ...
-                                    MBeautifier.ContinuationFormatting.isContinueToken(currElem, tokenStruct) || ...
-                                    any(strcmp(currElemStripped, operatorArray)) || ...
-                                    any(strcmp(currElemStripped(end), operatorArray)) || ...
-                                    (numNext >= 1 && any(strcmp(nextElemStripped(1), nonUnaryOperatorArray1))) || ...
-                                    (numNext > 1 && any(strcmp(nextElemStripped(1:2), nonUnaryOperatorArray2))) || ...
-                                    (numNext == 1 && any(strcmp(nextElemStripped, operatorArray))) || ...
-                                    numel(regexp(currElemStripped, '^@#MBeauty_ArrayToken_\d+#$'))
-
-                                elementsCell{elemInd} = [currElem, ' '];
-                            else
-                                elementsCell{elemInd} = [currElem, commaToken];
-                            end
-                        end
-                        elementsCell(cellfun('isempty', elementsCell)) = [];
-
-                        if ~isempty(elementsCell)
-                            elementsCell{end} = strtrim(formatElement(elementsCell{end}, doIndexing, contType, true));
-                        end
-                        strNew = [openingBracket, elementsCell{:}, closingBracket];
-                    end
-                else
-                    strNew = strtrim(str);
-                    strNew = [strNew(1), strtrim(formatElement(strNew(2:end-1), doIndexing, contType, true)), strNew(end)];
-                end
-
-                datacell = cell(1, 3);
-                if containerBorderIndexes{indexes(1), 1} == 1
-                    datacell{1} = '';
-                else
-
-                    datacell{1} = data(1:containerBorderIndexes{indexes(1), 1}-1);
-                    if isContainerIndexing
-                        if isWhitespaceDelimiter && datacell{1}(end) == ' '
-                            datacell{1} = [strtrim(datacell{1}), ' '];
-                        else
-                            datacell{1} = strtrim(datacell{1});
-                        end
-                    elseif preceedingKeyWord
-                        datacell{1} = strtrim(datacell{1});
-                        datacell{1} = [datacell{1}, ' '];
-                    end
-                end
-
-                if containerBorderIndexes{indexes(2), 1} == numel(data)
-                    datacell{end} = '';
-                else
-                    datacell{end} = data(containerBorderIndexes{indexes(2), 1}+1:end);
-                end
-
-                idAsStr = num2str(id);
-                idStr = [repmat('0', 1, 5-numel(idAsStr)), idAsStr];
-                tokenOfCUrElem = ['#MBeauty_ArrayToken_', idStr, '#'];
-                arrayMap(tokenOfCUrElem) = strNew;
-                id = id + 1;
-                datacell{2} = tokenOfCUrElem;
-                data = horzcat(datacell{:});
-
+                container = MBeautifier.ContainerFormatting.classifyContainer( ...
+                    data, containerBorderIndexes, indexes);
+                formattedContainer = MBeautifier.ContainerFormatting.formatContainer(data, container, context);
+                [data, arrayMap, id] = MBeautifier.ContainerFormatting.replaceContainerText( ...
+                    data, arrayMap, id, container, formattedContainer);
                 [containerBorderIndexes, maxDepth] = MBeautifier.ContainerScanner.calculateDepths(data);
             end
         end
@@ -309,6 +54,379 @@ classdef ContainerFormatting
     end
 
     methods (Static, Access = private)
+        function context = createContext(configuration, tokenStruct, preserveIndexExpressionSpacing, formatElement)
+            context = struct( ...
+                'configuration', configuration, ...
+                'tokenStruct', tokenStruct, ...
+                'preserveIndexExpressionSpacing', preserveIndexExpressionSpacing, ...
+                'formatElement', formatElement, ...
+                'commaToken', configuration.operatorPaddingRule('Comma').Token);
+
+            % TODO: Bind obj.AllOperators in in a filtered manner
+            nonUnaryOperators = {'&', '&&', '|', '||', '/', './', '\', '.\', '*', '.*', ':', '^', '.^', '<', '>', '==', '>=', '<=', '~='};
+            context.nonUnaryOperators = nonUnaryOperators;
+            context.singleCharacterNonUnaryOperators = nonUnaryOperators(cellfun(@numel, nonUnaryOperators) == 1);
+            context.twoCharacterNonUnaryOperators = nonUnaryOperators(cellfun(@numel, nonUnaryOperators) == 2);
+            context.operators = [nonUnaryOperators(:)', {'+'}, {'-'}, {'~'}];
+        end
+
+        function [indexes, maxDepth, foundPair] = selectDeepestContainerPair(containerBorderIndexes, maxDepth)
+            indexes = find([containerBorderIndexes{:, 2}] == maxDepth, 2);
+            foundPair = true;
+
+            if ~numel(indexes) || mod(numel(indexes), 2) ~= 0
+                maxDepth = maxDepth - 1;
+                foundPair = false;
+            end
+        end
+
+        function container = classifyContainer(data, containerBorderIndexes, indexes)
+            container = struct();
+            container.indexes = indexes;
+            container.openIndex = containerBorderIndexes{indexes(1), 1};
+            container.closeIndex = containerBorderIndexes{indexes(2), 1};
+            container.openingBracket = data(container.openIndex);
+            container.closingBracket = data(container.closeIndex);
+
+            [container.isWhitespaceDelimiter, container.contRegex] = ...
+                MBeautifier.ContainerFormatting.containerIndexingPattern(data, containerBorderIndexes, indexes);
+            [container.isIndexing, container.precedingKeyword] = ...
+                MBeautifier.ContainerFormatting.classifyIndexing(data, container);
+            [container.doIndexing, container.contType] = ...
+                MBeautifier.ContainerFormatting.indexingFormattingMode(container);
+        end
+
+        function [isWhitespaceDelimiter, contRegex] = containerIndexingPattern(data, containerBorderIndexes, indexes)
+            openingBracket = data(containerBorderIndexes{indexes(1), 1});
+            isEmbeddedContainer = indexes(1) > 1;
+
+            if isEmbeddedContainer && ...
+                    (data(containerBorderIndexes{indexes(1)-1, 1}) == '[' ...
+                    || data(containerBorderIndexes{indexes(1)-1, 1}) == '{')
+                isWhitespaceDelimiter = true;
+                contRegex = ['[a-zA-Z0-9_][', openingBracket, ']$'];
+            else
+                isWhitespaceDelimiter = false;
+                contRegex = ['[a-zA-Z0-9_]\s*[', openingBracket, ']$'];
+            end
+        end
+
+        function [isContainerIndexing, precedingKeyword] = classifyIndexing(data, container)
+            isContainerIndexing = numel(regexp(data(1:container.openIndex), container.contRegex));
+            precedingKeyword = false;
+
+            if isContainerIndexing
+                [isContainerIndexing, precedingKeyword] = ...
+                    MBeautifier.ContainerFormatting.removeKeywordIndexing(data, container.openIndex);
+            end
+
+            if isContainerIndexing && strcmp(container.openingBracket, '(') ...
+                    && MBeautifier.ContainerFormatting.isLikelyFunctionCallContainer(data, container.openIndex)
+                isContainerIndexing = false;
+            end
+        end
+
+        function [isContainerIndexing, precedingKeyword] = removeKeywordIndexing(data, openIndex)
+            isContainerIndexing = true;
+            precedingKeyword = false;
+            keywords = iskeyword();
+            prevStr = strtrim(data(1:openIndex-1));
+
+            if numel(prevStr) < 2
+                return;
+            end
+
+            for i = 1:numel(keywords)
+                if numel(regexp(prevStr, ['(\s|^)', keywords{i}, '$']))
+                    isContainerIndexing = false;
+                    precedingKeyword = true;
+                    break;
+                end
+            end
+        end
+
+        function [doIndexing, contType] = indexingFormattingMode(container)
+            doIndexing = container.isIndexing;
+            contType = '';
+
+            if ~doIndexing
+                return;
+            end
+
+            if strcmp(container.openingBracket, '(')
+                contType = 'matrix';
+            elseif strcmp(container.openingBracket, '{')
+                contType = 'cell';
+            else
+                doIndexing = false;
+            end
+        end
+
+        function formattedContainer = formatContainer(data, container, context)
+            originalContainer = data(container.openIndex:container.closeIndex);
+            normalizedContainer = MBeautifier.ContainerFormatting.normalizeContainerText( ...
+                originalContainer, container);
+
+            if container.doIndexing && context.preserveIndexExpressionSpacing
+                formattedContainer = strtrim(originalContainer);
+            elseif ~strcmp(container.openingBracket, '(')
+                formattedContainer = MBeautifier.ContainerFormatting.formatNonParenthesisContainer( ...
+                    normalizedContainer, container, context);
+            else
+                formattedContainer = MBeautifier.ContainerFormatting.formatBracketInterior( ...
+                    normalizedContainer, container, context);
+            end
+        end
+
+        function text = normalizeContainerText(text, container)
+            text = regexprep(text, '\s+', ' ');
+            text = regexprep(text, [container.openingBracket, '\s+'], container.openingBracket);
+            text = regexprep(text, ['\s+', container.closingBracket], container.closingBracket);
+        end
+
+        function formattedContainer = formatNonParenthesisContainer(containerText, container, context)
+            if container.doIndexing
+                formattedContainer = MBeautifier.ContainerFormatting.formatBracketInterior( ...
+                    containerText, container, context);
+            else
+                formattedContainer = MBeautifier.ContainerFormatting.formatDelimitedContainer( ...
+                    containerText, container, context);
+            end
+        end
+
+        function formattedContainer = formatBracketInterior(containerText, container, context)
+            formattedContainer = strtrim(containerText);
+            formattedContainer = [ ...
+                formattedContainer(1), ...
+                strtrim(feval(context.formatElement, ...
+                formattedContainer(2:end-1), container.doIndexing, container.contType, true)), ...
+                formattedContainer(end)];
+        end
+
+        function formattedContainer = formatDelimitedContainer(containerText, container, context)
+            elementsCell = MBeautifier.ContainerFormatting.splitDelimitedContainerElements( ...
+                containerText, container);
+            elementsCell = MBeautifier.ContainerFormatting.moveLeadingCommasToPreviousElements(elementsCell);
+            elementsCell = MBeautifier.ContainerFormatting.formatDelimitedElements( ...
+                elementsCell, container, context);
+            elementsCell(cellfun('isempty', elementsCell)) = [];
+
+            if ~isempty(elementsCell)
+                elementsCell{end} = strtrim(feval(context.formatElement, ...
+                    elementsCell{end}, container.doIndexing, container.contType, true));
+            end
+            formattedContainer = [container.openingBracket, elementsCell{:}, container.closingBracket];
+        end
+
+        function elementsCell = splitDelimitedContainerElements(containerText, ~)
+            elementsCell = regexp(containerText, ' ', 'split');
+            firstElem = strtrim(elementsCell{1});
+            lastElem = strtrim(elementsCell{end});
+
+            if isscalar(elementsCell)
+                elementsCell{1} = firstElem(2:end-1);
+            else
+                elementsCell{1} = firstElem(2:end);
+                elementsCell{end} = lastElem(1:end-1);
+            end
+        end
+
+        function elementsCell = moveLeadingCommasToPreviousElements(elementsCell)
+            for iElem = 1:numel(elementsCell)
+                elem = strtrim(elementsCell{iElem});
+                if numel(elem) && strcmp(elem(1), ',')
+                    elem = elem(2:end);
+                    if iElem > 1
+                        elementsCell{iElem-1} = [elementsCell{iElem-1}, ','];
+                    end
+                end
+                elementsCell{iElem} = elem;
+            end
+        end
+
+        function elementsCell = formatDelimitedElements(elementsCell, container, context)
+            isInCurlyBracket = 0;
+            inlineMatrix = context.configuration.inlineContinuousLinesInMatrixes();
+            inlineCurly = context.configuration.inlineContinuousLinesInCurlyBracket();
+
+            for elemInd = 1:numel(elementsCell) - 1
+                currElem = strtrim(elementsCell{elemInd});
+                nextElem = strtrim(elementsCell{elemInd+1});
+
+                if ~numel(currElem)
+                    continue;
+                end
+
+                isInCurlyBracket = isInCurlyBracket || numel(strfind(currElem, container.openingBracket));
+                isInCurlyBracket = isInCurlyBracket && ~numel(strfind(currElem, container.closingBracket));
+
+                currElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(currElem, container);
+                nextElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(nextElem, container);
+
+                if MBeautifier.ContinuationFormatting.isContinueToken(nextElemStripped, context.tokenStruct) ...
+                        && numel(elementsCell) > elemInd + 1
+                    nextElem = strtrim(elementsCell{elemInd+2});
+                    nextElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(nextElem, container);
+                end
+
+                [elementsCell, currElem, addCommas, skipElement] = ...
+                    MBeautifier.ContainerFormatting.applyContinuationElementRules( ...
+                    elementsCell, elemInd, currElem, container, context, inlineMatrix, inlineCurly);
+                if skipElement
+                    continue;
+                end
+
+                [elementsCell, currElem, currElemStripped, nextElemStripped, shouldStop] = ...
+                    MBeautifier.ContainerFormatting.mergeUnaryOperatorElement( ...
+                    elementsCell, elemInd, currElem, nextElem, currElemStripped, nextElemStripped, container, context);
+                if shouldStop
+                    break;
+                end
+
+                currElem = strtrim(feval(context.formatElement, ...
+                    currElem, container.doIndexing, container.contType, true));
+                elementsCell{elemInd} = MBeautifier.ContainerFormatting.formatDelimitedElementSeparator( ...
+                    currElem, currElemStripped, nextElemStripped, addCommas, isInCurlyBracket, context);
+            end
+        end
+
+        function stripped = stripContainerBrackets(element, container)
+            stripped = regexprep(element, ['[', container.openingBracket, container.closingBracket, ']'], '');
+        end
+
+        function [elementsCell, currElem, addCommas, skipElement] = applyContinuationElementRules( ...
+                elementsCell, elemInd, currElem, container, context, inlineMatrix, inlineCurly)
+            skipElement = false;
+
+            if strcmp(container.openingBracket, '[')
+                addCommas = context.configuration.addCommasToMatrices();
+                if MBeautifier.ContinuationFormatting.isContinueToken(currElem, context.tokenStruct)
+                    if inlineMatrix
+                        elementsCell{elemInd} = '';
+                        skipElement = true;
+                    else
+                        currElem = context.tokenStruct.ContinueMatrixToken.Token;
+                    end
+                end
+            else
+                addCommas = context.configuration.addCommasToCellArrays();
+                if MBeautifier.ContinuationFormatting.isContinueToken(currElem, context.tokenStruct)
+                    if inlineCurly
+                        elementsCell{elemInd} = '';
+                        skipElement = true;
+                    else
+                        currElem = context.tokenStruct.ContinueCurlyToken.Token;
+                    end
+                end
+            end
+        end
+
+        function [elementsCell, currElem, currElemStripped, nextElemStripped, shouldStop] = ...
+                mergeUnaryOperatorElement(elementsCell, elemInd, currElem, nextElem, ...
+                currElemStripped, nextElemStripped, container, context)
+            shouldStop = false;
+            lastChar = currElem(end);
+            if lastChar ~= '-' && lastChar ~= '+' && lastChar ~= '~'
+                return;
+            end
+
+            prevChar = MBeautifier.ContainerFormatting.previousElementLastCharacter( ...
+                elementsCell, elemInd, context.commaToken);
+            if isempty(prevChar) || prevChar == ','
+                currElem = horzcat(currElem, nextElem);
+                currElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(currElem, container);
+                elementsCell{elemInd+1} = '';
+                if numel(elementsCell) > elemInd + 1
+                    nextElem = strtrim(elementsCell{elemInd+2});
+                    nextElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(nextElem, container);
+                else
+                    elementsCell{elemInd} = currElem;
+                    shouldStop = true;
+                end
+            end
+        end
+
+        function prevChar = previousElementLastCharacter(elementsCell, elemInd, commaToken)
+            prevChar = [];
+            currElem = strtrim(elementsCell{elemInd});
+            if numel(currElem) > 1
+                prevChar = currElem(end-1);
+            elseif elemInd > 1
+                prevElems = strtrim(elementsCell(1:elemInd-1));
+                prevElems = prevElems(~cellfun(@isempty, prevElems));
+                prevElem = prevElems{end};
+                if numel(prevElem) >= numel(commaToken) && ...
+                        strcmp(prevElem(end-numel(commaToken)+1:end), commaToken)
+                    prevChar = ',';
+                else
+                    prevChar = prevElem(end);
+                end
+            end
+        end
+
+        function element = formatDelimitedElementSeparator( ...
+                currElem, currElemStripped, nextElemStripped, addCommas, isInCurlyBracket, context)
+            numNext = numel(nextElemStripped);
+
+            if ~addCommas || ...
+                    isempty(currElem) || ...
+                    strcmp(currElem(end), ',') || ...
+                    strcmp(currElem(end), ';') || ...
+                    isInCurlyBracket || ...
+                    MBeautifier.ContinuationFormatting.isContinueToken(currElem, context.tokenStruct) || ...
+                    any(strcmp(currElemStripped, context.operators)) || ...
+                    any(strcmp(currElemStripped(end), context.operators)) || ...
+                    (numNext >= 1 && any(strcmp(nextElemStripped(1), context.singleCharacterNonUnaryOperators))) || ...
+                    (numNext > 1 && any(strcmp(nextElemStripped(1:2), context.twoCharacterNonUnaryOperators))) || ...
+                    (numNext == 1 && any(strcmp(nextElemStripped, context.operators))) || ...
+                    numel(regexp(currElemStripped, '^@#MBeauty_ArrayToken_\d+#$'))
+                element = [currElem, ' '];
+            else
+                element = [currElem, context.commaToken];
+            end
+        end
+
+        function [data, arrayMap, id] = replaceContainerText(data, arrayMap, id, container, formattedContainer)
+            dataParts = cell(1, 3);
+            dataParts{1} = MBeautifier.ContainerFormatting.containerPrefix(data, container);
+            dataParts{end} = MBeautifier.ContainerFormatting.containerSuffix(data, container);
+
+            idAsStr = num2str(id);
+            idStr = [repmat('0', 1, 5-numel(idAsStr)), idAsStr];
+            tokenOfCUrElem = ['#MBeauty_ArrayToken_', idStr, '#'];
+            arrayMap(tokenOfCUrElem) = formattedContainer;
+            id = id + 1;
+            dataParts{2} = tokenOfCUrElem;
+            data = horzcat(dataParts{:});
+        end
+
+        function prefix = containerPrefix(data, container)
+            if container.openIndex == 1
+                prefix = '';
+                return;
+            end
+
+            prefix = data(1:container.openIndex-1);
+            if container.isIndexing
+                if container.isWhitespaceDelimiter && prefix(end) == ' '
+                    prefix = [strtrim(prefix), ' '];
+                else
+                    prefix = strtrim(prefix);
+                end
+            elseif container.precedingKeyword
+                prefix = strtrim(prefix);
+                prefix = [prefix, ' '];
+            end
+        end
+
+        function suffix = containerSuffix(data, container)
+            if container.closeIndex == numel(data)
+                suffix = '';
+            else
+                suffix = data(container.closeIndex+1:end);
+            end
+        end
+
         function tf = isLikelyFunctionCallContainer(data, openingIndex)
             % Treat known functions on the MATLAB path as calls, not matrix indexing.
             tf = false;
