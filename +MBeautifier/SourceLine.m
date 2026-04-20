@@ -103,7 +103,7 @@ classdef SourceLine
                     end
 
                     if currentCharacter == ''''
-                        if MBeautifier.SourceLine.isTransposeQuote(previousNonspace)
+                        if MBeautifier.LexicalRules.isTransposeQuote(previousNonspace)
                             [tokens, tokenCount] = MBeautifier.SourceLine.appendToken( ...
                                 tokens, tokenCount, 'transpose', index, index);
                         else
@@ -139,11 +139,6 @@ classdef SourceLine
 
         function tf = startsEllipsis(line, index)
             tf = index <= numel(line) - 2 && strcmp(line(index:index + 2), '...');
-        end
-
-        function tf = isTransposeQuote(previousNonspace)
-            tf = ~isempty(previousNonspace) && ...
-                ~isempty(regexp(previousNonspace, '[a-zA-Z0-9_\)\]\}\.''"]', 'once'));
         end
 
         function tokens = emptyTokenArray()

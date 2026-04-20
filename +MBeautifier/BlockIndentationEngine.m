@@ -71,11 +71,56 @@ classdef BlockIndentationEngine < handle
 
         function [trimmedLine, line, words, isOldStyleFunctionCall] = analyzeLine(obj, rawLine)
             trimmedLine = strtrim(rawLine);
-            line = regexprep(trimmedLine, '(".*")|(''.*'')|(%.*)', '');
+            line = obj.removeStringsAndComments(trimmedLine);
 
             pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
             words = regexp(line, pattern, 'split');
             isOldStyleFunctionCall = obj.isOldStyleFunctionCall(line);
+        end
+
+        function line = removeStringsAndComments(~, rawLine)
+            output = blanks(numel(rawLine));
+            outputIndex = 0;
+            stringDelimiter = '';
+            previousNonspace = '';
+            index = 1;
+
+            while index <= numel(rawLine)
+                currentCharacter = rawLine(index);
+
+                if isempty(stringDelimiter)
+                    if currentCharacter == '%'
+                        break;
+                    end
+
+                    if currentCharacter == ''''
+                        if MBeautifier.LexicalRules.isTransposeQuote(previousNonspace)
+                            outputIndex = outputIndex + 1;
+                            output(outputIndex) = currentCharacter;
+                        else
+                            stringDelimiter = currentCharacter;
+                        end
+                    elseif currentCharacter == '"'
+                        stringDelimiter = currentCharacter;
+                    else
+                        outputIndex = outputIndex + 1;
+                        output(outputIndex) = currentCharacter;
+                    end
+                elseif currentCharacter == stringDelimiter
+                    if index < numel(rawLine) && rawLine(index + 1) == stringDelimiter
+                        index = index + 1;
+                    else
+                        stringDelimiter = '';
+                    end
+                end
+
+                if isempty(stringDelimiter) && ~isspace(currentCharacter)
+                    previousNonspace = currentCharacter;
+                end
+                index = index + 1;
+            end
+
+            line = output(1:outputIndex);
         end
 
         function tf = isOldStyleFunctionCall(~, line)
