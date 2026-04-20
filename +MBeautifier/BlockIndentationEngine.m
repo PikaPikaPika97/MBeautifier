@@ -71,11 +71,56 @@ classdef BlockIndentationEngine < handle
 
         function [trimmedLine, line, words, isOldStyleFunctionCall] = analyzeLine(obj, rawLine)
             trimmedLine = strtrim(rawLine);
-            line = regexprep(trimmedLine, '(".*")|(''.*'')|(%.*)', '');
+            line = obj.removeStringsAndComments(trimmedLine);
 
             pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
             words = regexp(line, pattern, 'split');
             isOldStyleFunctionCall = obj.isOldStyleFunctionCall(line);
+        end
+
+        function line = removeStringsAndComments(obj, rawLine)
+            line = '';
+            stringDelimiter = '';
+            previousNonspace = '';
+            index = 1;
+
+            while index <= numel(rawLine)
+                currentCharacter = rawLine(index);
+
+                if isempty(stringDelimiter)
+                    if currentCharacter == '%'
+                        break;
+                    end
+
+                    if currentCharacter == ''''
+                        if obj.isTransposeQuote(previousNonspace)
+                            line = [line, currentCharacter]; %#ok<AGROW>
+                        else
+                            stringDelimiter = currentCharacter;
+                        end
+                    elseif currentCharacter == '"'
+                        stringDelimiter = currentCharacter;
+                    else
+                        line = [line, currentCharacter]; %#ok<AGROW>
+                    end
+                elseif currentCharacter == stringDelimiter
+                    if index < numel(rawLine) && rawLine(index + 1) == stringDelimiter
+                        index = index + 1;
+                    else
+                        stringDelimiter = '';
+                    end
+                end
+
+                if isempty(stringDelimiter) && ~isspace(currentCharacter)
+                    previousNonspace = currentCharacter;
+                end
+                index = index + 1;
+            end
+        end
+
+        function tf = isTransposeQuote(~, previousNonspace)
+            tf = ~isempty(previousNonspace) && ...
+                ~isempty(regexp(previousNonspace, '[a-zA-Z0-9_\)\]\}\.''"]', 'once'));
         end
 
         function tf = isOldStyleFunctionCall(~, line)
