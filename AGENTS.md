@@ -47,7 +47,7 @@ The project is small and configuration-driven. Formatting behavior is primarily 
 - Automatic shortcut creation is intentionally unsupported. `MBeautyShortcuts.createShortcut(...)` should keep raising `MBeautifier:ShortcutNotSupported` with manual Favorite guidance.
 - Desktop integration currently depends on `matlab.desktop.editor`. Treat that dependency as version-sensitive and keep it isolated behind `DesktopAdapter`.
 - Some historical spellings are part of the live implementation and XML schema, for example `KeyworPaddingRule`, `InlineContinousLines`, and `#MBeutyString#`. Do not "clean them up" casually without tracing all usages.
-- Modern formatting behavior is now configurable through `StatementBreakStrategy`, `DeclarationSpacingStyle`, and `InlineCommentSpacingStrategy`. The legacy XML keys still load, but the newer strategy keys take precedence when both are present.
+- Modern formatting behavior is now configurable through `StatementBreakStrategy`, `DeclarationSpacingStyle`, `InlineCommentSpacingStrategy`, `AutoAppendContinuationMarkers`, and `PreserveIndexExpressionSpacing`. The legacy XML keys still load, but the newer strategy keys take precedence when both are present.
 
 ## Validation
 
