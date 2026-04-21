@@ -84,6 +84,10 @@ classdef EditorSelectionFormatting
 
         function startLine = findFormatStartLine(lines, selectedLine)
             startLine = selectedLine;
+            if MBeautifier.EditorSelectionFormatting.isBlankLine(lines, selectedLine)
+                return;
+            end
+
             while startLine > 1 && ~MBeautifier.EditorSelectionFormatting.isBlankLine(lines, startLine - 1)
                 startLine = startLine - 1;
             end
@@ -91,6 +95,10 @@ classdef EditorSelectionFormatting
 
         function endLine = findFormatEndLine(lines, selectedLine, contentLineCount)
             endLine = selectedLine;
+            if MBeautifier.EditorSelectionFormatting.isBlankLine(lines, selectedLine)
+                return;
+            end
+
             while endLine < contentLineCount && ~MBeautifier.EditorSelectionFormatting.isBlankLine(lines, endLine + 1)
                 endLine = endLine + 1;
             end

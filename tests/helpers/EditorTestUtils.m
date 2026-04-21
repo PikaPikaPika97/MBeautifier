@@ -17,13 +17,6 @@ classdef EditorTestUtils
             testCase.addTeardown(@() EditorTestUtils.closeIfValid(document));
         end
 
-        function closeAllDocuments()
-            documents = MBeautifier.DesktopAdapter.getAllDocuments();
-            for idx = 1:numel(documents)
-                EditorTestUtils.closeIfValid(documents(idx));
-            end
-        end
-
         function closeIfValid(document)
             MBeautifier.DesktopAdapter.closeDocument(document);
         end

@@ -52,14 +52,16 @@ classdef TestPublicApiFailures < matlab.unittest.TestCase
         end
 
         function testFormatCurrentEditorPageErrorsWithoutActiveEditor(testCase)
-            EditorTestUtils.closeAllDocuments();
+            testCase.assumeTrue(isempty(MBeautifier.DesktopAdapter.getActiveDocument()), ...
+                'This test requires the MATLAB Editor to have no active page.');
 
             testCase.verifyError(@() MBeautify.formatCurrentEditorPage(), ...
                 'MBeautifier:NoActiveEditorPage');
         end
 
         function testFormatEditorSelectionErrorsWithoutActiveEditor(testCase)
-            EditorTestUtils.closeAllDocuments();
+            testCase.assumeTrue(isempty(MBeautifier.DesktopAdapter.getActiveDocument()), ...
+                'This test requires the MATLAB Editor to have no active page.');
 
             testCase.verifyError(@() MBeautify.formatEditorSelection(), ...
                 'MBeautifier:NoActiveEditorPage');

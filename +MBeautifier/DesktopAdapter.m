@@ -17,7 +17,7 @@ classdef DesktopAdapter
         function document = openDocument(file)
             MBeautifier.DesktopAdapter.flushEditorEvents();
             document = matlab.desktop.editor.openDocument(file);
-            MBeautifier.DesktopAdapter.flushEditorEvents();
+            MBeautifier.DesktopAdapter.settleEditorLifecycle();
         end
 
         function document = newDocument(text)
@@ -26,9 +26,9 @@ classdef DesktopAdapter
                 [bootstrapDocument, bootstrapPath] = MBeautifier.DesktopAdapter.openBootstrapDocument();
                 cleanupBootstrap = onCleanup( ...
                     @() MBeautifier.DesktopAdapter.closeBootstrapDocument(bootstrapDocument, bootstrapPath));
-                MBeautifier.DesktopAdapter.flushEditorEvents();
+                MBeautifier.DesktopAdapter.settleEditorLifecycle();
                 document = matlab.desktop.editor.newDocument();
-                MBeautifier.DesktopAdapter.flushEditorEvents();
+                MBeautifier.DesktopAdapter.settleEditorLifecycle();
                 MBeautifier.DesktopAdapter.setText(document, text);
                 MBeautifier.DesktopAdapter.assertDocumentText(document, text);
             catch ME
@@ -46,7 +46,7 @@ classdef DesktopAdapter
             end
 
             document.close();
-            MBeautifier.DesktopAdapter.flushEditorEvents();
+            MBeautifier.DesktopAdapter.settleEditorLifecycle();
         end
 
         function saveDocumentAs(document, file)
@@ -102,8 +102,7 @@ classdef DesktopAdapter
             MBeautifier.DesktopAdapter.writeBootstrapFile(bootstrapPath);
 
             try
-                bootstrapDocument = matlab.desktop.editor.openDocument(bootstrapPath);
-                MBeautifier.DesktopAdapter.flushEditorEvents();
+                bootstrapDocument = MBeautifier.DesktopAdapter.openDocument(bootstrapPath);
             catch ME
                 MBeautifier.DesktopAdapter.deleteFileIfPossible(bootstrapPath);
                 rethrow(ME);
@@ -116,6 +115,12 @@ classdef DesktopAdapter
         end
 
         function flushEditorEvents()
+            drawnow();
+            pause(0);
+            drawnow();
+        end
+
+        function settleEditorLifecycle()
             drawnow();
             pause(0.05);
             drawnow();
