@@ -12,7 +12,7 @@ classdef ContainerScanner
                 borderFound = true;
                 if any(strcmp(data(index), MBeautifier.Constants.ContainerOpeningBrackets))
                     newDepth = depth + 1;
-                    maxDepth = newDepth;
+                    maxDepth = max(maxDepth, newDepth);
                 elseif any(strcmp(data(index), MBeautifier.Constants.ContainerClosingBrackets))
                     newDepth = depth - 1;
                     depth = depth - 1;

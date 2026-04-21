@@ -51,8 +51,12 @@ and committed independently.
 - Formatting stages own isolated transformations: statement splitting,
   declaration spacing, operator spacing, keyword spacing, and inline comment
   spacing.
-- Container scanning owns matrices, cell arrays, indexing containers, and
-  function-call containers.
+- `ContainerScanner` owns bracket depth only; it must not decide formatting,
+  indexing, or function-call semantics.
+- `ContainerFormatting` owns matrix, cell, indexing, and function-call
+  container formatting decisions.
+- `MFormatter` owns line-level formatting orchestration and should delegate
+  container heuristics to `ContainerFormatting`.
 - Indentation owns block state and continuation indentation after formatting.
 - Desktop integration owns document I/O only; it does not own formatting rules.
 

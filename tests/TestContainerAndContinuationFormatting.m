@@ -10,6 +10,12 @@ classdef TestContainerAndContinuationFormatting < matlab.unittest.TestCase
             testCase.verifyEqual(cell2mat(borders(:, 2))', [1, 2, 3, 3, 2, 1]);
         end
 
+        function testContainerScannerKeepsTrueMaxDepthAfterShallowContainer(testCase)
+            [~, maxDepth] = MBeautifier.ContainerScanner.calculateDepths('a([1, {b}]) + [c]');
+
+            testCase.verifyEqual(maxDepth, 4);
+        end
+
         function testContinuationCommentBuilderPrefixesPlainText(testCase)
             contLineArray = { ...
                 'x = [1, ...', 'plain comment'; ...

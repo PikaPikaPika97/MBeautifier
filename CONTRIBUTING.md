@@ -36,6 +36,10 @@ Internal boundaries for future changes:
  - `+MBeautifier/+Configuration/Configuration.m` owns typed access to
    configuration semantics. Formatter and indenter code should use those
    accessors instead of direct `specialRule('...')` string lookups.
+ - `+MBeautifier/ContainerScanner.m` owns bracket depth only, while
+   `+MBeautifier/ContainerFormatting.m` owns matrix, cell, indexing, and
+   function-call container formatting decisions. Container-related bug fixes
+   should first extend `tests/TestContainerFormattingMatrix.m`.
  - Public `MBeautify.*` APIs and XML configuration keys should remain
    compatible unless a breaking change has been agreed in advance.
 
