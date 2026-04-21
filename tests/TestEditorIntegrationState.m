@@ -5,14 +5,14 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
         function testFormatCurrentEditorPageFormatsActiveDocument(testCase)
             originalText = sprintf('function y=foo(x)\ny=x+1;\nend\n');
             expectedText = FormatterTestUtils.formatText(originalText);
-            document = TestEditorIntegrationState.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testFormatCurrentEditorPage.m', originalText);
-            document.makeActive();
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatCurrentEditorPage();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
@@ -28,15 +28,15 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
             expectedBlock = FormatterTestUtils.formatText(sprintf('function y=foo(x)\ny=x+1;\nend\n'));
             expectedText = sprintf('a = 1;\n\n%s\nc = 3;\n', expectedBlock);
 
-            document = TestEditorIntegrationState.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testFormatEditorSelection.m', originalText);
-            document.Selection = [4, 1, 4, Inf];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [4, 1, 4, Inf]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatEditorSelection();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
@@ -47,40 +47,17 @@ classdef TestEditorIntegrationState < matlab.unittest.TestCase
             FormatterTestUtils.writeTextFileForTest(outputPath, 'placeholder');
             expectedText = FormatterTestUtils.formatText(inputText);
 
-            testCase.addTeardown(@() TestEditorIntegrationState.deleteIfExists(outputPath));
-            testCase.verifyFalse(matlab.desktop.editor.isOpen(inputPath));
-            testCase.verifyFalse(matlab.desktop.editor.isOpen(outputPath));
+            testCase.addTeardown(@() EditorTestUtils.deleteIfExists(outputPath));
+            testCase.verifyFalse(MBeautifier.DesktopAdapter.isDocumentOpen(inputPath));
+            testCase.verifyFalse(MBeautifier.DesktopAdapter.isDocumentOpen(outputPath));
 
             MBeautify.formatFile(inputPath, outputPath);
 
             testCase.verifyEqual( ...
                 FormatterTestUtils.normalizeText(FormatterTestUtils.readText(outputPath)), ...
                 FormatterTestUtils.normalizeText(expectedText));
-            testCase.verifyFalse(matlab.desktop.editor.isOpen(inputPath));
-            testCase.verifyFalse(matlab.desktop.editor.isOpen(outputPath));
-        end
-    end
-
-    methods (Static, Access = private)
-        function document = openTemporaryDocument(testCase, fileName, text)
-            path = FormatterTestUtils.writeTempTextFile(fileName, text);
-            document = matlab.desktop.editor.openDocument(path);
-
-            testCase.addTeardown(@() TestEditorIntegrationState.closeDocumentIfOpen(document));
-            testCase.addTeardown(@() TestEditorIntegrationState.deleteIfExists(path));
-        end
-
-        function closeDocumentIfOpen(document)
-            if ~isempty(document) && isvalid(document)
-                document.close();
-                drawnow();
-            end
-        end
-
-        function deleteIfExists(path)
-            if exist(path, 'file') == 2
-                delete(path);
-            end
+            testCase.verifyFalse(MBeautifier.DesktopAdapter.isDocumentOpen(inputPath));
+            testCase.verifyFalse(MBeautifier.DesktopAdapter.isDocumentOpen(outputPath));
         end
     end
 end

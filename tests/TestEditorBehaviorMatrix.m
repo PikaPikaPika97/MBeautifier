@@ -12,15 +12,15 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
             selectedBlock = sprintf('function y=foo(x)\ny=x+1;\nend\n');
             expectedText = sprintf('%s\nz=3;\n', ...
                 FormatterTestUtils.formatText(selectedBlock));
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testSelectionAtFileStart.m', originalText);
-            document.Selection = [2, 1, 2, Inf];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [2, 1, 2, Inf]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatEditorSelection();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
@@ -36,15 +36,15 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
             selectedBlock = sprintf('function y=foo(x)\ny=x+1;\nend\n');
             expectedText = sprintf('a=1;\n\n%s\nc=3;\n', ...
                 FormatterTestUtils.formatText(selectedBlock));
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testSelectionInMiddle.m', originalText);
-            document.Selection = [4, 1, 4, Inf];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [4, 1, 4, Inf]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatEditorSelection();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
@@ -58,15 +58,15 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
             selectedBlock = sprintf('function y=bar(x)\ny=x+2;\nend\n');
             expectedText = sprintf('a=1;\n\n%s', ...
                 FormatterTestUtils.formatText(selectedBlock));
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testSelectionAtFileEnd.m', originalText);
-            document.Selection = [4, 1, 4, Inf];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [4, 1, 4, Inf]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatEditorSelection();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
@@ -79,24 +79,24 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
                 'z=x+2;\n', ...
                 'end\n']);
             expectedText = FormatterTestUtils.formatText(originalText);
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testSelectionWithoutBlankLines.m', originalText);
-            document.Selection = [5, 1, 5, Inf];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [5, 1, 5, Inf]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatEditorSelection();
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
         end
 
         function testFormatEditorSelectionErrorsWhenSelectionIsEmpty(testCase)
             originalText = sprintf('x=1;\n');
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testEmptySelection.m', originalText);
-            document.Selection = [1, 1, 1, 1];
-            document.makeActive();
+            MBeautifier.DesktopAdapter.setSelection(document, [1, 1, 1, 1]);
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             testCase.verifyError(@() MBeautify.formatEditorSelection(), ...
                 'MBeautifier:NoSelectedEditorText');
@@ -104,16 +104,16 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
 
         function testFormatCurrentEditorPageWithoutSaveLeavesFileUnchanged(testCase)
             originalText = sprintf('function y=foo(x)\ny=x+1;\nend\n');
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testFormatWithoutSave.m', originalText);
-            path = document.Filename;
+            path = MBeautifier.DesktopAdapter.getFilename(document);
             expectedText = FormatterTestUtils.formatText(originalText);
-            document.makeActive();
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatCurrentEditorPage(false);
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
             testCase.verifyEqual( ...
                 FormatterTestUtils.normalizeText(FormatterTestUtils.readText(path)), ...
@@ -122,16 +122,16 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
 
         function testFormatCurrentEditorPageWithSaveWritesFile(testCase)
             originalText = sprintf('function y=foo(x)\ny=x+1;\nend\n');
-            document = TestEditorBehaviorMatrix.openTemporaryDocument(testCase, ...
+            document = EditorTestUtils.openTemporaryDocument(testCase, ...
                 'testFormatWithSave.m', originalText);
-            path = document.Filename;
+            path = MBeautifier.DesktopAdapter.getFilename(document);
             expectedText = FormatterTestUtils.formatText(originalText);
-            document.makeActive();
+            MBeautifier.DesktopAdapter.activateDocument(document);
 
             MBeautify.formatCurrentEditorPage(true);
 
             testCase.verifyEqual( ...
-                FormatterTestUtils.normalizeText(document.Text), ...
+                FormatterTestUtils.normalizeText(MBeautifier.DesktopAdapter.getText(document)), ...
                 FormatterTestUtils.normalizeText(expectedText));
             testCase.verifyEqual( ...
                 FormatterTestUtils.normalizeText(FormatterTestUtils.readText(path)), ...
@@ -139,26 +139,4 @@ classdef TestEditorBehaviorMatrix < matlab.unittest.TestCase
         end
     end
 
-    methods (Static, Access = private)
-        function document = openTemporaryDocument(testCase, fileName, text)
-            path = FormatterTestUtils.writeTempTextFile(fileName, text);
-            document = matlab.desktop.editor.openDocument(path);
-
-            testCase.addTeardown(@() TestEditorBehaviorMatrix.closeDocumentIfOpen(document));
-            testCase.addTeardown(@() TestEditorBehaviorMatrix.deleteIfExists(path));
-        end
-
-        function closeDocumentIfOpen(document)
-            if ~isempty(document) && isvalid(document)
-                document.close();
-                drawnow();
-            end
-        end
-
-        function deleteIfExists(path)
-            if exist(path, 'file') == 2
-                delete(path);
-            end
-        end
-    end
 end

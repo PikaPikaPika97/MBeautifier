@@ -31,8 +31,7 @@ classdef TestDesktopAdapter < matlab.unittest.TestCase
     methods (Static, Access = private)
         function closeIfValid(document)
             if ~isempty(document) && isvalid(document)
-                document.close();
-                drawnow();
+                MBeautifier.DesktopAdapter.closeDocument(document);
             end
         end
     end
