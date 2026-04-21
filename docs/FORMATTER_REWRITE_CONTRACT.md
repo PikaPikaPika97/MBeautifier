@@ -58,7 +58,11 @@ and committed independently.
 - `MFormatter` owns line-level formatting orchestration and should delegate
   container heuristics to `ContainerFormatting`.
 - Indentation owns block state and continuation indentation after formatting.
-- Desktop integration owns document I/O only; it does not own formatting rules.
+- `DesktopAdapter` is the only runtime boundary around `matlab.desktop.editor`.
+- `EditorApp` owns MATLAB Editor workflow orchestration only; it should not grow
+  new selection-scanning, document-rebuild, or formatting-rule branches.
+- `EditorSelectionFormatting` owns selection expansion and document text
+  rebuild planning for `formatEditorSelection`.
 
 ## Acceptance Gates
 
@@ -69,6 +73,12 @@ Each phase must pass the following before its commit:
 3. `tests/run_performance_baseline` when formatter throughput can change
 4. `git diff` review confirming the phase did not include unrelated changes
 5. `git status --short` showing only intentional files before commit
+
+Editor changes should also run the focused desktop tests:
+`tests/TestDesktopAdapter.m`, `tests/TestEditorIntegrationState.m`,
+`tests/TestEditorBehaviorMatrix.m`, and `tests/TestEditorSelectionFormatting.m`.
+Do not accept skipped Editor failures, mocked successful formatting, or swallowed
+desktop API errors as the default workflow.
 
 ## Commit Protocol
 

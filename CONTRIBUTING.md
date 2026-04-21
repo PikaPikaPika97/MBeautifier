@@ -40,6 +40,14 @@ Internal boundaries for future changes:
    `+MBeautifier/ContainerFormatting.m` owns matrix, cell, indexing, and
    function-call container formatting decisions. Container-related bug fixes
    should first extend `tests/TestContainerFormattingMatrix.m`.
+ - `+MBeautifier/DesktopAdapter.m` is the only runtime wrapper around
+   `matlab.desktop.editor`. `+MBeautifier/EditorApp.m` should only orchestrate
+   editor workflows, and selection expansion or document-text rebuilding should
+   stay in `+MBeautifier/EditorSelectionFormatting.m` with focused coverage in
+   `tests/TestEditorSelectionFormatting.m`.
+ - Editor-related bug fixes should first extend
+   `tests/TestEditorBehaviorMatrix.m` or the focused desktop integration tests,
+   then run `tests/run_all_tests` without skips or mocked success paths.
  - Public `MBeautify.*` APIs and XML configuration keys should remain
    compatible unless a breaking change has been agreed in advance.
 
