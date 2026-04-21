@@ -62,7 +62,7 @@ classdef ContainerFormatting
                 'formatElement', formatElement, ...
                 'commaToken', configuration.operatorPaddingRule('Comma').Token);
 
-            % TODO: Bind obj.AllOperators in in a filtered manner
+            % TODO: Bind obj.AllOperators in a filtered manner
             nonUnaryOperators = {'&', '&&', '|', '||', '/', './', '\', '.\', '*', '.*', ':', '^', '.^', '<', '>', '==', '>=', '<=', '~='};
             context.nonUnaryOperators = nonUnaryOperators;
             context.singleCharacterNonUnaryOperators = nonUnaryOperators(cellfun(@numel, nonUnaryOperators) == 1);
@@ -245,7 +245,7 @@ classdef ContainerFormatting
         end
 
         function elementsCell = formatDelimitedElements(elementsCell, container, context)
-            isInCurlyBracket = 0;
+            isInNestedContainer = 0;
             inlineMatrix = context.configuration.inlineContinuousLinesInMatrixes();
             inlineCurly = context.configuration.inlineContinuousLinesInCurlyBracket();
 
@@ -257,8 +257,8 @@ classdef ContainerFormatting
                     continue;
                 end
 
-                isInCurlyBracket = isInCurlyBracket || numel(strfind(currElem, container.openingBracket));
-                isInCurlyBracket = isInCurlyBracket && ~numel(strfind(currElem, container.closingBracket));
+                isInNestedContainer = isInNestedContainer || numel(strfind(currElem, container.openingBracket));
+                isInNestedContainer = isInNestedContainer && ~numel(strfind(currElem, container.closingBracket));
 
                 currElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(currElem, container);
                 nextElemStripped = MBeautifier.ContainerFormatting.stripContainerBrackets(nextElem, container);
@@ -286,7 +286,7 @@ classdef ContainerFormatting
                 currElem = strtrim(feval(context.formatElement, ...
                     currElem, container.doIndexing, container.contType, true));
                 elementsCell{elemInd} = MBeautifier.ContainerFormatting.formatDelimitedElementSeparator( ...
-                    currElem, currElemStripped, nextElemStripped, addCommas, isInCurlyBracket, context);
+                    currElem, currElemStripped, nextElemStripped, addCommas, isInNestedContainer, context);
             end
         end
 
@@ -365,17 +365,17 @@ classdef ContainerFormatting
         end
 
         function element = formatDelimitedElementSeparator( ...
-                currElem, currElemStripped, nextElemStripped, addCommas, isInCurlyBracket, context)
+                currElem, currElemStripped, nextElemStripped, addCommas, isInNestedContainer, context)
             numNext = numel(nextElemStripped);
 
             if ~addCommas || ...
                     isempty(currElem) || ...
                     strcmp(currElem(end), ',') || ...
                     strcmp(currElem(end), ';') || ...
-                    isInCurlyBracket || ...
+                    isInNestedContainer || ...
                     MBeautifier.ContinuationFormatting.isContinueToken(currElem, context.tokenStruct) || ...
                     any(strcmp(currElemStripped, context.operators)) || ...
-                    any(strcmp(currElemStripped(end), context.operators)) || ...
+                    (~isempty(currElemStripped) && any(strcmp(currElemStripped(end), context.operators))) || ...
                     (numNext >= 1 && any(strcmp(nextElemStripped(1), context.singleCharacterNonUnaryOperators))) || ...
                     (numNext > 1 && any(strcmp(nextElemStripped(1:2), context.twoCharacterNonUnaryOperators))) || ...
                     (numNext == 1 && any(strcmp(nextElemStripped, context.operators))) || ...
@@ -393,10 +393,10 @@ classdef ContainerFormatting
 
             idAsStr = num2str(id);
             idStr = [repmat('0', 1, 5-numel(idAsStr)), idAsStr];
-            tokenOfCUrElem = ['#MBeauty_ArrayToken_', idStr, '#'];
-            arrayMap(tokenOfCUrElem) = formattedContainer;
+            tokenOfCurElem = ['#MBeauty_ArrayToken_', idStr, '#'];
+            arrayMap(tokenOfCurElem) = formattedContainer;
             id = id + 1;
-            dataParts{2} = tokenOfCUrElem;
+            dataParts{2} = tokenOfCurElem;
             data = horzcat(dataParts{:});
         end
 

@@ -50,6 +50,14 @@ classdef TestContainerFormattingMatrix < matlab.unittest.TestCase
                 testCase, input, struct(), expected, 'containerNested.m');
         end
 
+        function testNestedEmptyContainersRemainStable(testCase)
+            input = sprintf('values = [[], 1; {}, 2];\n');
+            expected = sprintf('values = [[], 1; {}, 2];\n');
+
+            TestContainerFormattingMatrix.verifyStableExpectedFormatting( ...
+                testCase, input, struct(), expected, 'containerEmptyNested.m');
+        end
+
         function testCommaInsertionCanBeDisabledForMatrixAndCell(testCase)
             input = sprintf([ ...
                 'matrix = [1 2; 3 4];\n', ...
