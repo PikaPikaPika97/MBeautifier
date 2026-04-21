@@ -185,14 +185,16 @@ MBeautifier currently uses `matlab.desktop.editor` for desktop integration. This
 
 `MBeautify.m` is the public facade. It parses public arguments and delegates work to focused implementation modules.
 
-Headless formatting, batch orchestration, check/diff inspection, file-system validation, and final file writes are routed through `+MBeautifier/FormattingPipeline.m`. MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m` and uses `+MBeautifier/DesktopAdapter.m` as the narrow wrapper around `matlab.desktop.editor`.
+Headless formatting, batch orchestration, check/diff inspection, file-system validation, and final file writes are routed through `+MBeautifier/FormattingPipeline.m`. MATLAB desktop editor integration is isolated in `+MBeautifier/EditorApp.m`, which orchestrates editor workflows and delegates actual editor API calls to `+MBeautifier/DesktopAdapter.m`.
 
 The core text transformation happens in `+MBeautifier/MFormatter.m`, then indentation is applied through `+MBeautifier/MIndenter.m` and `+MBeautifier/BlockIndentationEngine.m`. `MFormatter` is still the largest stateful component, but several focused helpers now own smaller boundaries:
 
  - `+MBeautifier/SourceLine.m`: separates code, comments, section separators, strings, transpose quotes, and block comments for one line.
  - `+MBeautifier/LineFormattingStages.m`: owns isolated single-line transformations such as inline comment spacing and `arguments` declaration spacing.
  - `+MBeautifier/ContainerScanner.m`: calculates bracket container depth for matrices, cell arrays, indexing, and function-call-like containers.
+ - `+MBeautifier/ContainerFormatting.m`: owns matrix, cell, indexing, and function-call container formatting decisions.
  - `+MBeautifier/ContinuationFormatting.m`: owns helper behavior for continued source lines.
+ - `+MBeautifier/EditorSelectionFormatting.m`: owns selection expansion and document text rebuilding for MATLAB Editor selection formatting.
 
 Configuration loading remains XML-driven through `resources/settings/MBeautyConfigurationRules.xml`, but entry points can also accept an explicit configuration object or XML file path for one-off overrides.
 
@@ -228,6 +230,7 @@ Focused coverage currently includes:
  - structured `check` / `diff` inspection APIs and project-local configuration discovery
  - public API failure paths and desktop integration state handling
  - successful desktop formatting flows for editor pages, selections, and file-to-file formatting
+ - pure selection planning under `tests/TestEditorSelectionFormatting.m` and desktop behavior coverage under `tests/TestEditorBehaviorMatrix.m`
 
 For opt-in performance checks, run:
 

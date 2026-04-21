@@ -41,7 +41,7 @@ classdef TestBatchFormatting < matlab.unittest.TestCase
             testCase.verifyEqual( ...
                 FormatterTestUtils.normalizeText(FormatterTestUtils.readText(rootFile)), ...
                 FormatterTestUtils.normalizeText(expectedRoot));
-            testCase.verifyFalse(matlab.desktop.editor.isOpen(rootFile));
+            testCase.verifyFalse(MBeautifier.DesktopAdapter.isDocumentOpen(rootFile));
         end
 
         function testFormatFilesRecursesWithoutEditor(testCase)
@@ -86,7 +86,7 @@ classdef TestBatchFormatting < matlab.unittest.TestCase
         function path = writeTextFile(directory, fileName, text)
             path = fullfile(directory, fileName);
             fid = fopen(path, 'wt');
-            fileCloser = onCleanup(@() fclose(fid)); %#ok<NASGU>
+            fileCloser = onCleanup(@() fclose(fid));
             fprintf(fid, '%s', text);
         end
     end

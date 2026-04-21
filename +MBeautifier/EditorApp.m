@@ -51,88 +51,26 @@ classdef EditorApp
         function formatEditorSelection(doSave)
             currentEditorPage = MBeautifier.EditorApp.requireActiveEditorPage();
             currentSelection = MBeautifier.DesktopAdapter.getSelection(currentEditorPage);
+            selectedText = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
 
-            if isempty(MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage))
-                error('MBeautifier:NoSelectedEditorText', ...
-                    ['The active MATLAB Editor page does not contain a selection. ', ...
-                    'Select the code you want to format and try again.']);
-            end
+            selectionRequest = MBeautifier.EditorSelectionFormatting.plan( ...
+                MBeautifier.DesktopAdapter.getText(currentEditorPage), currentSelection, selectedText);
 
             if nargin == 0
                 doSave = false;
             end
 
-            expandedSelection = [currentSelection(1), 1, currentSelection(3), Inf];
-
-            MBeautifier.DesktopAdapter.setSelection(currentEditorPage, [currentSelection(1), 1, currentSelection(1), Inf]);
-            if isempty(strtrim(MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage)))
-                lineBeforePosition = currentSelection(1);
-            else
-                if currentSelection(1) > 1
-                    lineBeforePosition = [currentSelection(1) - 1, 1, currentSelection(1) - 1, Inf];
-                    MBeautifier.DesktopAdapter.setSelection(currentEditorPage, lineBeforePosition);
-                    lineBeforeText = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-
-                    while lineBeforePosition(1) > 1 && ~isempty(strtrim(lineBeforeText))
-                        lineBeforePosition = [lineBeforePosition(1) - 1, 1, lineBeforePosition(1) - 1, Inf];
-                        MBeautifier.DesktopAdapter.setSelection(currentEditorPage, lineBeforePosition);
-                        lineBeforeText = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-                    end
-                else
-                    lineBeforePosition = 1;
-                end
-            end
-
-            expandedSelection = [lineBeforePosition(1), 1, expandedSelection(3), Inf];
-
-            MBeautifier.DesktopAdapter.setSelection(currentEditorPage, [currentSelection(3), 1, currentSelection(3), Inf]);
-            if isempty(strtrim(MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage)))
-                lineAfterSelection = [currentSelection(3), 1, currentSelection(3), Inf];
-            else
-                lineAfterSelection = [currentSelection(3) + 1, 1, currentSelection(3) + 1, Inf];
-                MBeautifier.DesktopAdapter.setSelection(currentEditorPage, lineAfterSelection);
-                lineAfterText = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-                previousSelectionLine = currentSelection(1);
-
-                while ~isequal(lineAfterSelection(1), previousSelectionLine) && ~isempty(strtrim(lineAfterText))
-                    previousSelectionLine = lineAfterSelection(1);
-                    lineAfterSelection = [lineAfterSelection(1) + 1, 1, lineAfterSelection(1) + 1, Inf];
-                    MBeautifier.DesktopAdapter.setSelection(currentEditorPage, lineAfterSelection);
-                    lineAfterText = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-                end
-            end
-
-            endReached = isequal(lineAfterSelection(1), currentSelection(1));
-            expandedSelection = [expandedSelection(1), 1, lineAfterSelection(3), Inf];
-
-            if isequal(expandedSelection(1), 1)
-                codeBefore = '';
-            else
-                codeBeforeSelection = [1, 1, expandedSelection(1), Inf];
-                MBeautifier.DesktopAdapter.setSelection(currentEditorPage, codeBeforeSelection);
-                codeBefore = [MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage), MBeautifier.Constants.NewLine];
-            end
-
-            if endReached
-                codeAfter = '';
-            else
-                codeAfterSelection = [expandedSelection(3), 1, Inf, Inf];
-                MBeautifier.DesktopAdapter.setSelection(currentEditorPage, codeAfterSelection);
-                codeAfter = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-            end
-
-            MBeautifier.DesktopAdapter.setSelection(currentEditorPage, expandedSelection);
-            codeToFormat = MBeautifier.DesktopAdapter.getSelectedText(currentEditorPage);
-            selectedPosition = MBeautifier.DesktopAdapter.getSelection(currentEditorPage);
             configuration = MBeautifier.ConfigurationResolver.resolveForEditorDocument(currentEditorPage);
-            formattedSource = MBeautifier.FormattingPipeline.formatText(codeToFormat, configuration);
+            formattedSource = MBeautifier.FormattingPipeline.formatText(selectionRequest.CodeToFormat, configuration);
 
-            MBeautifier.DesktopAdapter.setText(currentEditorPage, [codeBefore, formattedSource, codeAfter]);
+            MBeautifier.DesktopAdapter.setText(currentEditorPage, ...
+                MBeautifier.EditorSelectionFormatting.rebuild(selectionRequest, formattedSource));
             MBeautifier.EditorApp.indentPage(currentEditorPage, configuration);
-            if ~isempty(selectedPosition)
-                MBeautifier.DesktopAdapter.goToPositionInLine(currentEditorPage, selectedPosition(1), selectedPosition(2));
+            if ~isempty(selectionRequest.RestorePosition)
+                MBeautifier.DesktopAdapter.goToPositionInLine( ...
+                    currentEditorPage, selectionRequest.RestorePosition(1), selectionRequest.RestorePosition(2));
             end
-            MBeautifier.DesktopAdapter.setSelection(currentEditorPage, expandedSelection);
+            MBeautifier.DesktopAdapter.setSelection(currentEditorPage, selectionRequest.ExpandedSelection);
             MBeautifier.DesktopAdapter.activateDocument(currentEditorPage);
 
             if doSave
@@ -165,18 +103,15 @@ classdef EditorApp
         end
 
         function indentPage(editorPage, configuration)
-            indentationCharacter = configuration.specialRule('IndentationCharacter').Value;
-            indentationCount = configuration.specialRule('IndentationCount').ValueAsDouble;
-            makeBlankLinesEmpty = configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
+            neededIndentation = configuration.indentationString();
+            makeBlankLinesEmpty = configuration.trimBlankLinesDuringIndentation();
+            skipIndentation = strcmp(neededIndentation, '    ');
 
-            if strcmpi(indentationCharacter, 'white-space') && indentationCount == 4 && ~makeBlankLinesEmpty
+            if skipIndentation && ~makeBlankLinesEmpty
                 return
             end
 
-            neededIndentation = MBeautifier.EditorApp.buildIndentationString(indentationCharacter, indentationCount);
-
             textArray = regexp(MBeautifier.DesktopAdapter.getText(editorPage), MBeautifier.Constants.NewLine, 'split');
-            skipIndentation = strcmpi(indentationCharacter, 'white-space') && indentationCount == 4;
 
             for iLine = 1:numel(textArray)
                 cText = textArray{iLine};
@@ -214,11 +149,6 @@ classdef EditorApp
                 fileattrib(fileName, '+w');
                 MBeautifier.DesktopAdapter.saveDocumentAs(editorPage, fileName);
             end
-        end
-
-        function indent = buildIndentationString(indentationCharacter, indentationCount)
-            indent = MBeautifier.IndentationConfiguration.indentationString( ...
-                indentationCharacter, indentationCount);
         end
 
         function cText = replaceLeadingIndentation(cText, neededIndentation)
