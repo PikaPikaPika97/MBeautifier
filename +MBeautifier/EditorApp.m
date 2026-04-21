@@ -103,18 +103,15 @@ classdef EditorApp
         end
 
         function indentPage(editorPage, configuration)
-            indentationCharacter = configuration.specialRule('IndentationCharacter').Value;
-            indentationCount = configuration.specialRule('IndentationCount').ValueAsDouble;
-            makeBlankLinesEmpty = configuration.specialRule('Indentation_TrimBlankLines').ValueAsDouble;
+            neededIndentation = configuration.indentationString();
+            makeBlankLinesEmpty = configuration.trimBlankLinesDuringIndentation();
+            skipIndentation = strcmp(neededIndentation, '    ');
 
-            if strcmpi(indentationCharacter, 'white-space') && indentationCount == 4 && ~makeBlankLinesEmpty
+            if skipIndentation && ~makeBlankLinesEmpty
                 return
             end
 
-            neededIndentation = MBeautifier.EditorApp.buildIndentationString(indentationCharacter, indentationCount);
-
             textArray = regexp(MBeautifier.DesktopAdapter.getText(editorPage), MBeautifier.Constants.NewLine, 'split');
-            skipIndentation = strcmpi(indentationCharacter, 'white-space') && indentationCount == 4;
 
             for iLine = 1:numel(textArray)
                 cText = textArray{iLine};
@@ -152,11 +149,6 @@ classdef EditorApp
                 fileattrib(fileName, '+w');
                 MBeautifier.DesktopAdapter.saveDocumentAs(editorPage, fileName);
             end
-        end
-
-        function indent = buildIndentationString(indentationCharacter, indentationCount)
-            indent = MBeautifier.IndentationConfiguration.indentationString( ...
-                indentationCharacter, indentationCount);
         end
 
         function cText = replaceLeadingIndentation(cText, neededIndentation)
